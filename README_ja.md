@@ -2,6 +2,15 @@
   <img src="images/banner.png" width="500">
 </p>
 
+<p align="center">
+  <a href="https://github.com/07JP27/ZoomacIt/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/07JP27/ZoomacIt/ci.yml?style=flat&label=CI" alt="CI"></a>
+  <a href="https://github.com/07JP27/ZoomacIt/releases/latest"><img src="https://img.shields.io/github/v/release/07JP27/ZoomacIt?style=flat" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/07JP27/ZoomacIt?style=flat" alt="License"></a>
+  <img src="https://img.shields.io/badge/Swift-6.0-orange?style=flat&logo=swift&logoColor=white" alt="Swift 6.0">
+  <img src="https://img.shields.io/badge/macOS-26%2B-blue?style=flat&logo=apple&logoColor=white" alt="macOS 26+">
+  <a href="https://github.com/sponsors/07JP27"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa?style=flat&logo=githubsponsors&logoColor=white" alt="Sponsor"></a>
+</p>
+
 <p align="center"><a href="README.md">English</a> | 日本語</p>
 
 ---
@@ -137,6 +146,47 @@ https://github.com/user-attachments/assets/5f7563e4-584b-4bab-99c4-70f7d3265f54
 - 他のアプリに切り替えてもタイマーはバックグラウンドで継続動作します
 - メニューバーアイコン → **Break** からも起動できます
 - ドローモード（⌃2）と休憩タイマー（⌃3）は同時に使用できます
+
+## 開発
+
+本プロジェクトは Swift 6 + AppKit を使用し、macOS 26+ をターゲットとしています。Xcode プロジェクトは [xcodegen](https://github.com/yonaskolb/XcodeGen) により `src/project.yml` から生成されます。
+
+```bash
+make build       # デバッグビルド
+make test        # ユニットテストの実行
+make run         # ビルドしてアプリを起動
+make release     # リリースビルド（Developer ID 署名付き）
+make notarize    # リリースビルド + Apple 公証
+make dmg VERSION=1.0.0  # 公証 + 配布用 DMG 作成
+make clean       # ビルド成果物のクリーンアップ
+make generate    # .xcodeproj を再生成（src/project.yml 編集後）
+```
+
+### コード署名と公証
+
+macOS の Gatekeeper は、インターネットからダウンロードされた未署名のアプリをブロックします。Gatekeeper の警告を回避して ZoomacIt を配布するには、Developer ID 証明書で署名し、Apple の公証を受ける必要があります。
+
+`.env.example` を `.env` にコピーし、認証情報を入力してください：
+
+```bash
+cp .env.example .env
+```
+
+| 変数 | 説明 |
+| --- | --- |
+| `APPLE_ID` | Apple ID のメールアドレス |
+| `TEAM_ID` | Apple Developer Team ID（`make release` / `make notarize` で使用） |
+| `APP_PASSWORD` | appleid.apple.com で生成した[アプリ用パスワード](https://support.apple.com/ja-jp/102654) |
+
+次のコマンドを実行します：
+
+```bash
+make dmg VERSION=1.0.0
+```
+
+Developer ID で署名されたリリースバイナリをビルドし、Apple に公証を申請し、公証チケットをステープルし、配布用 DMG にパッケージします。
+
+> **注意:** 公証には [Apple Developer Program](https://developer.apple.com/programs/) のメンバーシップが必要です。`.env` ファイルは gitignore に含まれており、コミットしないでください。
 
 ## ライセンス
 

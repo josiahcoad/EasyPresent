@@ -5,6 +5,12 @@ DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 
+# Secrets
+.env
+
+# Claude Code
+.claude/settings.local.json
+
 # macOS
 .DS_Store
 *.swp
