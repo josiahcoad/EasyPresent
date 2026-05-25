@@ -67,10 +67,86 @@ final class DrawingCanvasView: NSView {
     // MARK: - Cursor
 
     override func resetCursorRects() {
-        let cursor: NSCursor = (drawingState.activeTool == .spotlight)
-            ? Self.spotlightCursor
-            : .crosshair
+        let cursor: NSCursor
+        switch drawingState.activeTool {
+        case .spotlight:
+            cursor = Self.spotlightCursor
+        default:
+            let mods = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let shapeType = drawingState.currentShapeType(modifiers: mods)
+            cursor = shapeType == .freehand ? penCursor() : crosshairCursor()
+        }
         addCursorRect(bounds, cursor: cursor)
+    }
+
+    /// Generates a circular cursor matching the current pen colour and width (freehand mode).
+    private func penCursor() -> NSCursor {
+        let penWidth = drawingState.penWidth
+        let color = drawingState.currentNSColor
+        let size = max(penWidth * 2, 8)
+        let imageSize = NSSize(width: size + 4, height: size + 4)
+
+        let image = NSImage(size: imageSize, flipped: false) { _ in
+            let rect = NSRect(x: 2, y: 2, width: size, height: size)
+            color.setFill()
+            NSBezierPath(ovalIn: rect).fill()
+            NSColor.white.withAlphaComponent(0.8).setStroke()
+            let border = NSBezierPath(ovalIn: rect)
+            border.lineWidth = 0.5
+            border.stroke()
+            return true
+        }
+
+        let hotSpot = NSPoint(x: imageSize.width / 2, y: imageSize.height / 2)
+        return NSCursor(image: image, hotSpot: hotSpot)
+    }
+
+    /// Generates a crosshair cursor scaled by pen width (shape modes).
+    private func crosshairCursor() -> NSCursor {
+        let penWidth = drawingState.penWidth
+        let color = drawingState.currentNSColor
+        let armLength = min(max(penWidth * 1.5, 8), 40)
+        let thickness = min(max(penWidth, 1), 10)
+        let size = armLength * 2 + thickness + 6
+        let center = size / 2
+
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            // Outer contrast stroke (black)
+            NSColor.black.withAlphaComponent(0.4).setStroke()
+            let outerH = NSBezierPath()
+            outerH.move(to: NSPoint(x: center - armLength, y: center))
+            outerH.line(to: NSPoint(x: center + armLength, y: center))
+            outerH.lineWidth = thickness + 2
+            outerH.lineCapStyle = .round
+            outerH.stroke()
+
+            let outerV = NSBezierPath()
+            outerV.move(to: NSPoint(x: center, y: center - armLength))
+            outerV.line(to: NSPoint(x: center, y: center + armLength))
+            outerV.lineWidth = thickness + 2
+            outerV.lineCapStyle = .round
+            outerV.stroke()
+
+            // Inner colored stroke
+            color.setStroke()
+            let innerH = NSBezierPath()
+            innerH.move(to: NSPoint(x: center - armLength, y: center))
+            innerH.line(to: NSPoint(x: center + armLength, y: center))
+            innerH.lineWidth = thickness
+            innerH.lineCapStyle = .round
+            innerH.stroke()
+
+            let innerV = NSBezierPath()
+            innerV.move(to: NSPoint(x: center, y: center - armLength))
+            innerV.line(to: NSPoint(x: center, y: center + armLength))
+            innerV.lineWidth = thickness
+            innerV.lineCapStyle = .round
+            innerV.stroke()
+
+            return true
+        }
+
+        return NSCursor(image: image, hotSpot: NSPoint(x: center, y: center))
     }
 
     /// Minimum width and height (points) for a spotlight rectangle to be confirmed
@@ -289,7 +365,7 @@ final class DrawingCanvasView: NSView {
             activeFreehand = nil
 
         case .arrow:
-            previewLayer = ShapeRenderer.arrowPath(from: dragOrigin, to: currentPoint)
+            previewLayer = ShapeRenderer.arrowPath(from: dragOrigin, to: currentPoint, penWidth: drawingState.penWidth)
             activeFreehand = nil
         }
 
@@ -385,6 +461,7 @@ final class DrawingCanvasView: NSView {
                 if drawingState.isTextMode {
                     textInputController?.updateColor(drawingState.currentNSColor)
                 }
+                updateCursorForTool()
             }
 
         // Clear all
@@ -426,6 +503,7 @@ final class DrawingCanvasView: NSView {
         // Tab key for ellipse (track as key, not modifier)
         case "\t":
             drawingState.isTabHeld = true
+            updateCursorForTool()
 
         // Space — move cursor to center
         case " ":
@@ -452,6 +530,17 @@ final class DrawingCanvasView: NSView {
         // Spotlight toggle (S without modifiers)
         case "S" where modifiers.intersection([.command, .control, .option, .shift]).isEmpty:
             toggleSpotlightTool()
+
+        // Arrow keys — pen size (when no spotlight rect; ZoomIt-compatible)
+        case String(UnicodeScalar(NSUpArrowFunctionKey)!)
+            where drawingState.spotlightRect == nil:
+            drawingState.increasePenWidth()
+            updateCursorForTool()
+
+        case String(UnicodeScalar(NSDownArrowFunctionKey)!)
+            where drawingState.spotlightRect == nil:
+            drawingState.decreasePenWidth()
+            updateCursorForTool()
 
         // Spotlight darkness — only meaningful when a spotlight rect exists
         case String(UnicodeScalar(NSUpArrowFunctionKey)!)
@@ -497,37 +586,37 @@ final class DrawingCanvasView: NSView {
         guard let characters = event.charactersIgnoringModifiers else { return }
         if characters == "\t" {
             drawingState.isTabHeld = false
+            updateCursorForTool()
         }
     }
 
     override func flagsChanged(with event: NSEvent) {
         // Modifier changes during drag cause shape type to update.
-        // The actual shape determination happens in mouseDragged via currentShapeType().
         if isDragging {
-            // Trigger a "drag" update with current position
             mouseDragged(with: event)
+        }
+        // Update cursor to reflect shape tool
+        if drawingState.activeTool != .spotlight {
+            updateCursorForTool()
         }
     }
 
     // MARK: - Scroll Wheel (Pen Size)
 
     override func scrollWheel(with event: NSEvent) {
-        let modifiers = event.modifierFlags
-
         if drawingState.isTextMode {
             // In text mode, scroll wheel changes font size
             textInputController?.adjustFontSize(delta: event.scrollingDeltaY)
             return
         }
 
-        if modifiers.contains(.control) {
-            // ⌃ + scroll wheel → pen size
-            if event.scrollingDeltaY > 0 {
-                drawingState.increasePenWidth()
-            } else if event.scrollingDeltaY < 0 {
-                drawingState.decreasePenWidth()
-            }
+        // Scroll wheel → pen size (also works with Ctrl held for ZoomIt compatibility)
+        if event.scrollingDeltaY > 0 {
+            drawingState.increasePenWidth()
+        } else if event.scrollingDeltaY < 0 {
+            drawingState.decreasePenWidth()
         }
+        updateCursorForTool()
     }
 
     // MARK: - Compositing
@@ -576,7 +665,7 @@ final class DrawingCanvasView: NSView {
         case .ellipse:
             path = ShapeRenderer.ellipsePath(from: dragOrigin, to: endPoint).cgPath
         case .arrow:
-            path = ShapeRenderer.arrowPath(from: dragOrigin, to: endPoint).cgPath
+            path = ShapeRenderer.arrowPath(from: dragOrigin, to: endPoint, penWidth: drawingState.penWidth).cgPath
         }
 
         bitmapContext.addPath(path)
