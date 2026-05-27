@@ -275,4 +275,38 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Settings.shared.drawHotkeyKeyCode, 11)
         XCTAssertEqual(Settings.shared.breakHotkeyKeyCode, 8)
     }
+
+    // MARK: - Live Zoom Hotkey
+
+    func testDefaultLiveZoomHotkey() {
+        // Default: ⌃4 (keyCode 21 = kVK_ANSI_4, modifiers = controlKey)
+        XCTAssertEqual(Settings.shared.liveZoomHotkeyKeyCode, UInt32(kVK_ANSI_4))
+        XCTAssertEqual(Settings.shared.liveZoomHotkeyModifiers, UInt32(controlKey))
+    }
+
+    func testLiveZoomHotkeyRoundTrip() {
+        Settings.shared.liveZoomHotkeyKeyCode = UInt32(kVK_ANSI_L)
+        Settings.shared.liveZoomHotkeyModifiers = UInt32(controlKey | optionKey)
+
+        XCTAssertEqual(Settings.shared.liveZoomHotkeyKeyCode, UInt32(kVK_ANSI_L))
+        XCTAssertEqual(Settings.shared.liveZoomHotkeyModifiers, UInt32(controlKey | optionKey))
+    }
+
+    func testLiveZoomHotkeyIndependentOfOtherHotkeys() {
+        Settings.shared.liveZoomHotkeyKeyCode = UInt32(kVK_ANSI_5)
+        Settings.shared.zoomHotkeyKeyCode = UInt32(kVK_ANSI_9)
+
+        XCTAssertEqual(Settings.shared.liveZoomHotkeyKeyCode, UInt32(kVK_ANSI_5))
+        XCTAssertEqual(Settings.shared.zoomHotkeyKeyCode, UInt32(kVK_ANSI_9))
+    }
+
+    func testLiveZoomHotkeyResetToDefaults() {
+        Settings.shared.liveZoomHotkeyKeyCode = UInt32(kVK_ANSI_X)
+        Settings.shared.liveZoomHotkeyModifiers = UInt32(cmdKey)
+
+        Settings.shared.resetToDefaults()
+
+        XCTAssertEqual(Settings.shared.liveZoomHotkeyKeyCode, UInt32(kVK_ANSI_4))
+        XCTAssertEqual(Settings.shared.liveZoomHotkeyModifiers, UInt32(controlKey))
+    }
 }
