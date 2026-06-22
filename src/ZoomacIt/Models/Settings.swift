@@ -42,6 +42,49 @@ enum FontWeightOption: String, CaseIterable, Sendable {
     }
 }
 
+/// The modifier the user holds to enter presenter Draw mode.
+///
+/// Fn/Globe is intentionally excluded: holding it doesn't set a flag readable via
+/// `NSEvent.modifierFlags` polling, so it can't be detected without the Accessibility
+/// permission this app avoids.
+enum ActivationModifier: String, CaseIterable, Sendable {
+    case option, control, command
+
+    var displayName: String {
+        switch self {
+        case .option:   return "Option (⌥)"
+        case .control:  return "Control (⌃)"
+        case .command:  return "Command (⌘)"
+        }
+    }
+
+    /// Short symbol used in gesture hints (e.g. "⌥ + drag").
+    var symbol: String {
+        switch self {
+        case .option:   return "⌥"
+        case .control:  return "⌃"
+        case .command:  return "⌘"
+        }
+    }
+
+    var flag: NSEvent.ModifierFlags {
+        switch self {
+        case .option:   return .option
+        case .control:  return .control
+        case .command:  return .command
+        }
+    }
+
+    /// Carbon modifier mask for RegisterEventHotKey (used by the pin/unpin hotkey).
+    var carbonFlag: UInt32 {
+        switch self {
+        case .option:   return UInt32(optionKey)
+        case .control:  return UInt32(controlKey)
+        case .command:  return UInt32(cmdKey)
+        }
+    }
+}
+
 /// Centralized settings manager backed by UserDefaults.
 /// Thread-safe (UserDefaults is thread-safe).
 final class Settings: @unchecked Sendable {
@@ -73,6 +116,17 @@ final class Settings: @unchecked Sendable {
         static let highlighterOpacity = "drawHighlighterOpacity"
         static let highlighterWidthMultiplier = "drawHighlighterWidthMultiplier"
         static let spotlightDarkness = "drawSpotlightDarkness"
+        static let laserEnabled = "drawLaserEnabled"
+        static let haloColor = "drawHaloColor"
+        static let holdModifier = "drawHoldModifier"
+
+        // Stats (local usage counters)
+        static let statsArrows = "statsArrowsDrawn"
+        static let statsBoxes = "statsBoxesDrawn"
+        static let statsSessions = "statsDrawSessions"
+
+        // Onboarding
+        static let onboardingCompleted = "onboardingCompleted"
 
         // Text
         static let defaultFontSize = "textDefaultFontSize"
@@ -113,6 +167,9 @@ final class Settings: @unchecked Sendable {
             Keys.highlighterOpacity: 0.35,
             Keys.highlighterWidthMultiplier: 4.0,
             Keys.spotlightDarkness: 0.6,
+            Keys.laserEnabled: false,
+            Keys.haloColor: PenColor.yellow.rawValue,
+            Keys.holdModifier: ActivationModifier.option.rawValue,
 
             // Text
             Keys.defaultFontSize: 24.0,
@@ -200,6 +257,45 @@ final class Settings: @unchecked Sendable {
     var spotlightDarkness: CGFloat {
         get { CGFloat(defaults.double(forKey: Keys.spotlightDarkness)) }
         set { defaults.set(Double(newValue), forKey: Keys.spotlightDarkness) }
+    }
+
+    var laserEnabled: Bool {
+        get { defaults.bool(forKey: Keys.laserEnabled) }
+        set { defaults.set(newValue, forKey: Keys.laserEnabled) }
+    }
+
+    var haloColor: PenColor {
+        get { PenColor(rawValue: defaults.string(forKey: Keys.haloColor) ?? "") ?? .yellow }
+        set { defaults.set(newValue.rawValue, forKey: Keys.haloColor) }
+    }
+
+    var holdModifier: ActivationModifier {
+        get { ActivationModifier(rawValue: defaults.string(forKey: Keys.holdModifier) ?? "") ?? .option }
+        set { defaults.set(newValue.rawValue, forKey: Keys.holdModifier) }
+    }
+
+    // MARK: - Stats (local usage counters)
+
+    var arrowsDrawn: Int {
+        get { defaults.integer(forKey: Keys.statsArrows) }
+        set { defaults.set(newValue, forKey: Keys.statsArrows) }
+    }
+
+    var boxesDrawn: Int {
+        get { defaults.integer(forKey: Keys.statsBoxes) }
+        set { defaults.set(newValue, forKey: Keys.statsBoxes) }
+    }
+
+    var drawSessions: Int {
+        get { defaults.integer(forKey: Keys.statsSessions) }
+        set { defaults.set(newValue, forKey: Keys.statsSessions) }
+    }
+
+    // MARK: - Onboarding
+
+    var onboardingCompleted: Bool {
+        get { defaults.bool(forKey: Keys.onboardingCompleted) }
+        set { defaults.set(newValue, forKey: Keys.onboardingCompleted) }
     }
 
     // MARK: - Text

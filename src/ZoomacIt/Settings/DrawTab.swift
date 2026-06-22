@@ -1,34 +1,23 @@
 import SwiftUI
 
-/// Draw settings tab: pen color, width, highlighter, text.
+/// Draw settings for the presenter overlay (halo + laser + box).
 struct DrawTab: View {
 
-    @AppStorage(Settings.Keys.defaultPenColor) private var penColorRaw: String = PenColor.red.rawValue
     @AppStorage(Settings.Keys.defaultPenWidth) private var penWidth: Double = 3.0
-    @AppStorage(Settings.Keys.highlighterOpacity) private var highlighterOpacity: Double = 0.35
-    @AppStorage(Settings.Keys.highlighterWidthMultiplier) private var highlighterMultiplier: Double = 4.0
-    @AppStorage(Settings.Keys.spotlightDarkness) private var spotlightDarkness: Double = 0.6
-    @AppStorage(Settings.Keys.defaultFontSize) private var fontSize: Double = 24.0
-    @AppStorage(Settings.Keys.fontWeight) private var fontWeightRaw: String = FontWeightOption.medium.rawValue
+    @AppStorage(Settings.Keys.laserEnabled) private var laserEnabled: Bool = true
+    @AppStorage(Settings.Keys.haloColor) private var haloColorRaw: String = PenColor.yellow.rawValue
 
-    private var penColor: Binding<PenColor> {
+    private var haloColor: Binding<PenColor> {
         Binding(
-            get: { PenColor(rawValue: penColorRaw) ?? .red },
-            set: { penColorRaw = $0.rawValue }
-        )
-    }
-
-    private var fontWeight: Binding<FontWeightOption> {
-        Binding(
-            get: { FontWeightOption(rawValue: fontWeightRaw) ?? .medium },
-            set: { fontWeightRaw = $0.rawValue }
+            get: { PenColor(rawValue: haloColorRaw) ?? .yellow },
+            set: { haloColorRaw = $0.rawValue }
         )
     }
 
     var body: some View {
         Form {
-            Section("Pen") {
-                Picker("Default Color", selection: penColor) {
+            Section("Cursor") {
+                Picker("Halo Color", selection: haloColor) {
                     ForEach(PenColor.allCases, id: \.self) { color in
                         HStack {
                             Circle()
@@ -39,9 +28,12 @@ struct DrawTab: View {
                         .tag(color)
                     }
                 }
+                Toggle("Trailing laser", isOn: $laserEnabled)
+            }
 
+            Section("Box") {
                 HStack {
-                    Text("Default Width")
+                    Text("Line Width")
                     Slider(value: $penWidth, in: 1...50, step: 1)
                     Text("\(Int(penWidth)) pt")
                         .frame(width: 40, alignment: .trailing)
@@ -49,50 +41,26 @@ struct DrawTab: View {
                 }
             }
 
-            Section("Highlighter") {
-                HStack {
-                    Text("Opacity")
-                    Slider(value: $highlighterOpacity, in: 0.05...1.0, step: 0.05)
-                    Text(String(format: "%.0f%%", highlighterOpacity * 100))
-                        .frame(width: 40, alignment: .trailing)
-                        .monospacedDigit()
-                }
-
-                HStack {
-                    Text("Width Multiplier")
-                    Slider(value: $highlighterMultiplier, in: 1...10, step: 0.5)
-                    Text(String(format: "%.1fx", highlighterMultiplier))
-                        .frame(width: 40, alignment: .trailing)
-                        .monospacedDigit()
-                }
-            }
-
-            Section("Spotlight") {
-                HStack {
-                    Text("Darkness")
-                    Slider(value: $spotlightDarkness, in: 0.1...0.9, step: 0.05)
-                    Text(String(format: "%.0f%%", spotlightDarkness * 100))
-                        .frame(width: 40, alignment: .trailing)
-                        .monospacedDigit()
-                }
-            }
-
-            Section("Text") {
-                HStack {
-                    Text("Default Size")
-                    Slider(value: $fontSize, in: 8...200, step: 1)
-                    Text("\(Int(fontSize)) pt")
-                        .frame(width: 50, alignment: .trailing)
-                        .monospacedDigit()
-                }
-
-                Picker("Weight", selection: fontWeight) {
-                    ForEach(FontWeightOption.allCases, id: \.self) { weight in
-                        Text(weight.displayName).tag(weight)
-                    }
-                }
+            Section("Controls") {
+                controlRow("Hold ⌥ + move", "Show the halo + laser pointer")
+                controlRow("⌥ + drag", "Draw a box")
+                controlRow("Hold ⌥, tap Space", "Pin it on — release ⌥ and it stays")
+                controlRow("⌥Space again", "Turn it off")
+                controlRow("⌘Z", "Undo the last box")
+                controlRow("Esc", "Exit draw mode")
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func controlRow(_ gesture: String, _ description: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(gesture)
+                .font(.system(.body, design: .monospaced))
+                .frame(width: 150, alignment: .leading)
+            Text(description)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
     }
 }

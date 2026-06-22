@@ -29,3 +29,7 @@ Packages/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 docs/node_modules/
+
+# EasyPresent release artifacts
+build-release/
+*.dmg

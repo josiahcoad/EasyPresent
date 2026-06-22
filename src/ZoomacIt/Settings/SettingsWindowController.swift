@@ -18,7 +18,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: settingsView)
 
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "ZoomacIt Settings"
+        window.title = "EasyPresent Settings"
         window.styleMask = [.titled, .closable]
         window.setContentSize(NSSize(width: 520, height: 420))
         window.center()

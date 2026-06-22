@@ -13,7 +13,7 @@ final class DrawingCanvasView: NSView {
 
     // MARK: - Callbacks
 
-    /// Called when the user exits draw mode (Escape / right-click).
+    /// Called when the user exits draw mode (Escape / Option release).
     var onDismiss: (() -> Void)?
 
     // MARK: - State
@@ -46,6 +46,43 @@ final class DrawingCanvasView: NSView {
     private var dragOrigin: CGPoint = .zero
     private var freehandPoints: [CGPoint] = []
     private var isDragging: Bool = false
+
+    // MARK: - Presenter Mode
+
+    /// When true (Draw mode was entered by holding Option), it exits the moment
+    /// Option is released. False for the sticky ⌥Space toggle.
+    var exitsOnOptionRelease: Bool = false
+
+    /// Latest cursor position in view coordinates — drives the halo ring.
+    private var cursorPoint: CGPoint = .zero
+
+    /// Whether the cursor is currently over THIS display's overlay. With one overlay
+    /// per screen, only the canvas under the cursor paints the halo/laser.
+    private var cursorInside = false
+
+    /// Whether the system cursor is currently hidden (balanced hide/unhide).
+    private var didHideCursor = false
+
+    // MARK: - Laser Pointer (transient cursor trail)
+
+    /// A single sample of the laser trail with the time it was recorded.
+    private struct LaserPoint {
+        let location: CGPoint
+        let time: TimeInterval
+    }
+
+    /// Recent cursor samples that make up the fading laser trail. Never composited
+    /// into `finishedLayer` — purely transient, like a real laser pointer.
+    private var laserTrail: [LaserPoint] = []
+
+    /// Repaint timer that ages out trail points while the trail is non-empty.
+    private var laserTimer: Timer?
+
+    /// Tracking area so `mouseMoved` fires across the whole view (no button down).
+    private var mouseTrackingArea: NSTrackingArea?
+
+    /// How long (seconds) a trail point takes to fully fade out.
+    private static let laserFadeDuration: TimeInterval = 0.5
 
     // MARK: - Text Mode
 
@@ -217,6 +254,52 @@ final class DrawingCanvasView: NSView {
         window?.invalidateCursorRects(for: self)
     }
 
+    // MARK: - Tracking Area
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = mouseTrackingArea {
+            removeTrackingArea(existing)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        mouseTrackingArea = area
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window else { return }
+        // Seed the halo at the current pointer location so it appears immediately.
+        let winPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        cursorPoint = convert(winPoint, from: nil)
+        cursorInside = bounds.contains(cursorPoint)
+        if !didHideCursor {
+            // CGDisplayHideCursor works window-server-wide, so it hides the system
+            // cursor even though our overlay is a non-activating (background) panel.
+            CGDisplayHideCursor(CGMainDisplayID())
+            didHideCursor = true
+        }
+        needsDisplay = true
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil {
+            laserTimer?.invalidate()
+            laserTimer = nil
+            laserTrail.removeAll()
+            if didHideCursor {
+                CGDisplayShowCursor(CGMainDisplayID())
+                didHideCursor = false
+            }
+        }
+    }
+
     // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
@@ -270,6 +353,47 @@ final class DrawingCanvasView: NSView {
             freehand.stroke()
             NSGraphicsContext.current?.cgContext.setBlendMode(.normal)
         }
+
+        // 5. Halo ring + laser trail — only on the display the cursor is currently over.
+        if cursorInside {
+            drawHalo(in: context)
+            drawLaserTrail(in: context)
+        }
+    }
+
+    /// A soft glowing ring centered on the cursor so the audience can find the pointer.
+    private func drawHalo(in context: CGContext) {
+        let haloColor = Settings.shared.haloColor.nsColor
+        let radius: CGFloat = 22
+        let rect = CGRect(x: cursorPoint.x - radius, y: cursorPoint.y - radius,
+                          width: radius * 2, height: radius * 2)
+        context.saveGState()
+        // Soft filled glow.
+        context.setFillColor(haloColor.withAlphaComponent(0.18).cgColor)
+        context.fillEllipse(in: rect)
+        // Crisp ring with a dark contrast edge so it shows on any background.
+        context.setStrokeColor(NSColor.black.withAlphaComponent(0.35).cgColor)
+        context.setLineWidth(4.5)
+        context.strokeEllipse(in: rect)
+        context.setStrokeColor(haloColor.withAlphaComponent(0.95).cgColor)
+        context.setLineWidth(2.5)
+        context.strokeEllipse(in: rect)
+
+        // "+" crosshair marking the exact pointer position at the halo center.
+        let arm: CGFloat = 7
+        context.setLineCap(.round)
+        func plus(color: NSColor, width: CGFloat) {
+            context.setStrokeColor(color.cgColor)
+            context.setLineWidth(width)
+            context.move(to: CGPoint(x: cursorPoint.x - arm, y: cursorPoint.y))
+            context.addLine(to: CGPoint(x: cursorPoint.x + arm, y: cursorPoint.y))
+            context.move(to: CGPoint(x: cursorPoint.x, y: cursorPoint.y - arm))
+            context.addLine(to: CGPoint(x: cursorPoint.x, y: cursorPoint.y + arm))
+            context.strokePath()
+        }
+        plus(color: NSColor.black.withAlphaComponent(0.35), width: 4)  // contrast underlay
+        plus(color: haloColor.withAlphaComponent(0.95), width: 2)
+        context.restoreGState()
     }
 
     private func drawBackground(in context: CGContext) {
@@ -299,76 +423,148 @@ final class DrawingCanvasView: NSView {
         context.restoreGState()
     }
 
+    // MARK: - Laser Pointer
+
+    override func mouseMoved(with event: NSEvent) {
+        guard !isDragging else { return }
+        // In presenter Draw mode every move feeds the halo + laser trail (no modifier gate).
+        cursorInside = true
+        let point = convert(event.locationInWindow, from: nil)
+        cursorPoint = point
+        if Settings.shared.laserEnabled {
+            let now = ProcessInfo.processInfo.systemUptime
+            laserTrail.append(LaserPoint(location: point, time: now))
+            pruneLaserTrail(now: now)
+            startLaserTimerIfNeeded()
+        }
+        needsDisplay = true
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        cursorInside = true
+        cursorPoint = convert(event.locationInWindow, from: nil)
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        // Cursor moved to another display — clear this overlay's halo/laser.
+        cursorInside = false
+        laserTrail.removeAll()
+        needsDisplay = true
+    }
+
+    /// Drop trail points that have fully faded.
+    private func pruneLaserTrail(now: TimeInterval) {
+        laserTrail.removeAll { now - $0.time > Self.laserFadeDuration }
+    }
+
+    /// Run a ~60 Hz repaint while the trail is alive so it fades smoothly even
+    /// when the cursor stops moving. Stops itself once the trail empties.
+    private func startLaserTimerIfNeeded() {
+        guard laserTimer == nil else { return }
+        laserTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let now = ProcessInfo.processInfo.systemUptime
+            self.pruneLaserTrail(now: now)
+            self.needsDisplay = true
+            if self.laserTrail.isEmpty {
+                self.laserTimer?.invalidate()
+                self.laserTimer = nil
+            }
+        }
+    }
+
+    private func drawLaserTrail(in context: CGContext) {
+        guard let headPoint = laserTrail.last else { return }
+        let head = headPoint.location
+        let now = ProcessInfo.processInfo.systemUptime
+        // Whole-trail freshness — lets the streak dim away gracefully once the cursor stops.
+        let globalT = max(0.0, 1.0 - (now - headPoint.time) / Self.laserFadeDuration)
+
+        // Stroke the entire trail as ONE continuous path and fill the stroked region
+        // with a tail→head gradient. (Stroking each sample segment separately left a
+        // round line-cap at every sample, which read as beads along the trail.)
+        if laserTrail.count >= 2 {
+            let path = CGMutablePath()
+            path.move(to: laserTrail[0].location)
+            for point in laserTrail.dropFirst() { path.addLine(to: point.location) }
+            let tail = laserTrail[0].location
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+            // Soft outer glow, then bright core — same path, different width/alpha.
+            drawLaserBand(path, width: 18, maxAlpha: 0.28 * globalT, from: tail, to: head,
+                          colorSpace: colorSpace, in: context)
+            drawLaserBand(path, width: 6, maxAlpha: 1.0 * globalT, from: tail, to: head,
+                          colorSpace: colorSpace, in: context)
+        }
+
+        // Bright dot at the cursor head.
+        guard globalT > 0 else { return }
+        let r: CGFloat = 5.0
+        context.saveGState()
+        context.setFillColor(NSColor.systemRed.withAlphaComponent(0.30 * globalT).cgColor)
+        context.fillEllipse(in: CGRect(x: head.x - r - 4, y: head.y - r - 4,
+                                       width: 2 * (r + 4), height: 2 * (r + 4)))
+        context.setFillColor(NSColor.systemRed.withAlphaComponent(0.95 * globalT).cgColor)
+        context.fillEllipse(in: CGRect(x: head.x - r, y: head.y - r, width: 2 * r, height: 2 * r))
+        context.setFillColor(NSColor.white.withAlphaComponent(0.85 * globalT).cgColor)
+        context.fillEllipse(in: CGRect(x: head.x - 2.0, y: head.y - 2.0, width: 4.0, height: 4.0))
+        context.restoreGState()
+    }
+
+    /// Stroke `path` once and fill the stroked region with a transparent→red gradient
+    /// running tail→head, producing a smooth (bead-free) comet streak.
+    private func drawLaserBand(_ path: CGPath, width: CGFloat, maxAlpha: CGFloat,
+                               from tail: CGPoint, to head: CGPoint,
+                               colorSpace: CGColorSpace, in context: CGContext) {
+        guard maxAlpha > 0 else { return }
+        context.saveGState()
+        context.addPath(path)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.setLineWidth(width)
+        context.replacePathWithStrokedPath()
+        context.clip()
+        let colors = [
+            NSColor.systemRed.withAlphaComponent(0).cgColor,
+            NSColor.systemRed.withAlphaComponent(maxAlpha).cgColor
+        ] as CFArray
+        if let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: [0, 1]) {
+            context.drawLinearGradient(gradient, start: tail, end: head,
+                                       options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        }
+        context.restoreGState()
+    }
+
     // MARK: - Mouse Events
 
     override func mouseDown(with event: NSEvent) {
-        if drawingState.isTextMode {
-            // In text mode, clicks position the text field
-            handleTextModeClick(event)
-            return
-        }
-
+        // Starting a box drag cancels the laser trail.
+        laserTrail.removeAll()
         let point = convert(event.locationInWindow, from: nil)
         dragOrigin = point
-
-        if drawingState.activeTool == .spotlight {
-            spotlightDragRect = CGRect(origin: point, size: .zero)
-            isDragging = true
-            previewLayer = nil
-            activeFreehand = nil
-            return
-        }
-
-        freehandPoints = [point]
+        cursorPoint = point
         isDragging = true
-
-        activeFreehand = NSBezierPath()
-        activeFreehand?.move(to: point)
         previewLayer = nil
+    }
+
+    /// ⌥⇧+drag draws an arrow; a plain ⌥+drag draws a box.
+    private func dragShapeType(for event: NSEvent) -> ShapeType {
+        event.modifierFlags.contains(.shift) ? .arrow : .rectangle
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard isDragging else { return }
-
         let currentPoint = convert(event.locationInWindow, from: nil)
-
-        if drawingState.activeTool == .spotlight {
-            spotlightDragRect = CGRect(
-                x: dragOrigin.x,
-                y: dragOrigin.y,
-                width: currentPoint.x - dragOrigin.x,
-                height: currentPoint.y - dragOrigin.y
-            )
-            setNeedsDisplay(bounds)
-            return
-        }
-
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let shapeType = drawingState.currentShapeType(modifiers: modifiers)
-
-        switch shapeType {
-        case .freehand:
-            freehandPoints.append(currentPoint)
-            activeFreehand = FreehandRenderer.smoothedPath(from: freehandPoints)
-            previewLayer = nil
-
-        case .line:
-            previewLayer = ShapeRenderer.linePath(from: dragOrigin, to: currentPoint)
-            activeFreehand = nil
-
-        case .rectangle:
-            previewLayer = ShapeRenderer.rectanglePath(from: dragOrigin, to: currentPoint)
-            activeFreehand = nil
-
-        case .ellipse:
-            previewLayer = ShapeRenderer.ellipsePath(from: dragOrigin, to: currentPoint)
-            activeFreehand = nil
-
+        cursorPoint = currentPoint
+        switch dragShapeType(for: event) {
         case .arrow:
-            previewLayer = ShapeRenderer.arrowPath(from: dragOrigin, to: currentPoint, penWidth: drawingState.penWidth)
-            activeFreehand = nil
+            // Tip (arrowhead) at the cursor, tail at the drag origin.
+            previewLayer = ShapeRenderer.arrowPath(from: currentPoint, to: dragOrigin,
+                                                   penWidth: drawingState.penWidth)
+        default:
+            previewLayer = ShapeRenderer.rectanglePath(from: dragOrigin, to: currentPoint)
         }
-
         setNeedsDisplay(bounds)
     }
 
@@ -376,60 +572,34 @@ final class DrawingCanvasView: NSView {
         guard isDragging else { return }
         isDragging = false
 
-        if drawingState.activeTool == .spotlight {
-            // Confirm the spotlight rectangle and auto-return to the draw tool.
-            // Reject tiny gestures (clicks, accidental micro-drags) so they don't
-            // create unusable spotlights or push a phantom undo snapshot that
-            // would silently evict older legitimate entries from the 30-slot stack.
-            if let dragRect = spotlightDragRect,
-               dragRect.standardized.width > Self.spotlightMinSize,
-               dragRect.standardized.height > Self.spotlightMinSize {
-                strokeManager.pushUndoSnapshot(
-                    finishedLayer,
-                    backgroundMode: drawingState.backgroundMode,
-                    spotlightRect: drawingState.spotlightRect
-                )
-                drawingState.spotlightRect = dragRect.standardized
-            }
-            spotlightDragRect = nil
-            drawingState.activeTool = .draw
-            updateCursorForTool()
-            setNeedsDisplay(bounds)
-            return
-        }
-
         let currentPoint = convert(event.locationInWindow, from: nil)
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let shapeType = drawingState.currentShapeType(modifiers: modifiers)
+        cursorPoint = currentPoint
+        let shapeType = dragShapeType(for: event)
 
-        // Push current state for undo
-        strokeManager.pushUndoSnapshot(
-            finishedLayer,
-            backgroundMode: drawingState.backgroundMode,
-            spotlightRect: drawingState.spotlightRect
-        )
+        // Skip zero-size shapes (a click with no drag) so they don't inflate stats/undo.
+        let dragged = hypot(currentPoint.x - dragOrigin.x, currentPoint.y - dragOrigin.y) > 3
 
-        // Composite the completed stroke onto finishedLayer
-        finishedLayer = compositeStrokeOntoFinished(
-            shapeType: shapeType,
-            endPoint: currentPoint
-        )
+        if dragged {
+            // Push current state for undo, then composite the shape into the finished layer.
+            strokeManager.pushUndoSnapshot(
+                finishedLayer,
+                backgroundMode: drawingState.backgroundMode,
+                spotlightRect: drawingState.spotlightRect
+            )
+            finishedLayer = compositeStrokeOntoFinished(shapeType: shapeType, endPoint: currentPoint)
 
-        // Clear transient layers
-        previewLayer = nil
-        activeFreehand = nil
-        freehandPoints.removeAll()
+            // Local usage counters.
+            switch shapeType {
+            case .arrow: Settings.shared.arrowsDrawn += 1
+            default:     Settings.shared.boxesDrawn += 1
+            }
 
-        setNeedsDisplay(bounds)
-    }
-
-    override func rightMouseDown(with event: NSEvent) {
-        // If in text mode, commit current text first
-        if drawingState.isTextMode {
-            commitCurrentText()
+            // Advance the guided onboarding when the expected shape is drawn.
+            OnboardingCoordinator.shared.recordShape(shapeType)
         }
-        // Right-click exits draw mode
-        onDismiss?()
+
+        previewLayer = nil
+        setNeedsDisplay(bounds)
     }
 
     // MARK: - Keyboard Events
@@ -441,182 +611,24 @@ final class DrawingCanvasView: NSView {
         let modifiers = event.modifierFlags
 
         switch characters {
-        // Exit draw mode
+        // Exit draw mode.
         case "\u{1B}": // Escape
-            if drawingState.isTextMode {
-                commitText()
-            } else {
-                onDismiss?()
-            }
+            onDismiss?()
 
-        // Color keys
-        case "R", "G", "B", "O", "Y", "P":
-            if let color = PenColor.from(character: characters) {
-                if modifiers.contains(.shift) {
-                    drawingState.isHighlighterMode = true
-                } else {
-                    drawingState.isHighlighterMode = false
-                }
-                drawingState.activeColor = color
-                if drawingState.isTextMode {
-                    textInputController?.updateColor(drawingState.currentNSColor)
-                }
-                updateCursorForTool()
-            }
-
-        // Clear all
-        case "E":
-            strokeManager.pushUndoSnapshot(
-                finishedLayer,
-                backgroundMode: drawingState.backgroundMode,
-                spotlightRect: drawingState.spotlightRect
-            )
-            finishedLayer = nil
-            setNeedsDisplay(bounds)
-
-        // Whiteboard
-        case "W":
-            strokeManager.pushUndoSnapshot(
-                finishedLayer,
-                backgroundMode: drawingState.backgroundMode,
-                spotlightRect: drawingState.spotlightRect
-            )
-            drawingState.backgroundMode = .whiteboard
-            finishedLayer = nil
-            setNeedsDisplay(bounds)
-
-        // Blackboard
-        case "K":
-            strokeManager.pushUndoSnapshot(
-                finishedLayer,
-                backgroundMode: drawingState.backgroundMode,
-                spotlightRect: drawingState.spotlightRect
-            )
-            drawingState.backgroundMode = .blackboard
-            finishedLayer = nil
-            setNeedsDisplay(bounds)
-
-        // Text mode
-        case "T":
-            enterTextMode()
-
-        // Tab key for ellipse (track as key, not modifier)
-        case "\t":
-            drawingState.isTabHeld = true
-            updateCursorForTool()
-
-        // Space — move cursor to center
-        case " ":
-            let center = CGPoint(x: bounds.midX, y: bounds.midY)
-            let screenCenter = window?.convertPoint(toScreen: convert(center, to: nil)) ?? center
-            CGWarpMouseCursorPosition(screenCenter)
-
-        // Undo (⌘Z is handled here since we're key)
+        // Undo the last box (⌘Z).
         case "Z" where modifiers.contains(.command):
             performUndo()
-
-        // Copy to clipboard (⌘C)
-        case "C" where modifiers.contains(.command):
-            Task {
-                await copyToClipboard()
-            }
-
-        // Save to file (⌘S)
-        case "S" where modifiers.contains(.command):
-            Task {
-                await saveToFile()
-            }
-
-        // Spotlight toggle (S without modifiers)
-        case "S" where modifiers.intersection([.command, .control, .option, .shift]).isEmpty:
-            toggleSpotlightTool()
-
-        // Arrow keys — pen size (when no spotlight rect; ZoomIt-compatible)
-        case String(UnicodeScalar(NSUpArrowFunctionKey)!)
-            where drawingState.spotlightRect == nil:
-            drawingState.increasePenWidth()
-            updateCursorForTool()
-
-        case String(UnicodeScalar(NSDownArrowFunctionKey)!)
-            where drawingState.spotlightRect == nil:
-            drawingState.decreasePenWidth()
-            updateCursorForTool()
-
-        // Spotlight darkness — only meaningful when a spotlight rect exists
-        case String(UnicodeScalar(NSUpArrowFunctionKey)!)
-            where drawingState.spotlightRect != nil
-                && modifiers.intersection([.command, .control, .option, .shift]).isEmpty:
-            drawingState.increaseSpotlightDarkness()
-            setNeedsDisplay(bounds)
-
-        case String(UnicodeScalar(NSDownArrowFunctionKey)!)
-            where drawingState.spotlightRect != nil
-                && modifiers.intersection([.command, .control, .option, .shift]).isEmpty:
-            drawingState.decreaseSpotlightDarkness()
-            setNeedsDisplay(bounds)
 
         default:
             break
         }
     }
 
-    /// Toggle spotlight: arm the tool if no rect exists, otherwise clear the active rect.
-    private func toggleSpotlightTool() {
-        if drawingState.spotlightRect != nil {
-            // Active spotlight → clear (and snapshot for undo).
-            strokeManager.pushUndoSnapshot(
-                finishedLayer,
-                backgroundMode: drawingState.backgroundMode,
-                spotlightRect: drawingState.spotlightRect
-            )
-            drawingState.spotlightRect = nil
-            drawingState.activeTool = .draw
-        } else {
-            // No confirmed spotlight rect. Toggle the tool itself:
-            //   .draw      → .spotlight  (arm — wait for the next drag)
-            //   .spotlight → .draw       (cancel an armed spotlight before any drag)
-            // No undo snapshot is pushed here because nothing has been committed yet.
-            drawingState.activeTool = (drawingState.activeTool == .spotlight) ? .draw : .spotlight
-        }
-        updateCursorForTool()
-        setNeedsDisplay(bounds)
-    }
-
-    override func keyUp(with event: NSEvent) {
-        guard let characters = event.charactersIgnoringModifiers else { return }
-        if characters == "\t" {
-            drawingState.isTabHeld = false
-            updateCursorForTool()
-        }
-    }
-
     override func flagsChanged(with event: NSEvent) {
-        // Modifier changes during drag cause shape type to update.
-        if isDragging {
-            mouseDragged(with: event)
+        // Spring-loaded entry (hold Option): releasing Option exits Draw mode.
+        if exitsOnOptionRelease && !event.modifierFlags.contains(Settings.shared.holdModifier.flag) {
+            onDismiss?()
         }
-        // Update cursor to reflect shape tool
-        if drawingState.activeTool != .spotlight {
-            updateCursorForTool()
-        }
-    }
-
-    // MARK: - Scroll Wheel (Pen Size)
-
-    override func scrollWheel(with event: NSEvent) {
-        if drawingState.isTextMode {
-            // In text mode, scroll wheel changes font size
-            textInputController?.adjustFontSize(delta: event.scrollingDeltaY)
-            return
-        }
-
-        // Scroll wheel → pen size (also works with Ctrl held for ZoomIt compatibility)
-        if event.scrollingDeltaY > 0 {
-            drawingState.increasePenWidth()
-        } else if event.scrollingDeltaY < 0 {
-            drawingState.decreasePenWidth()
-        }
-        updateCursorForTool()
     }
 
     // MARK: - Compositing
@@ -665,7 +677,8 @@ final class DrawingCanvasView: NSView {
         case .ellipse:
             path = ShapeRenderer.ellipsePath(from: dragOrigin, to: endPoint).cgPath
         case .arrow:
-            path = ShapeRenderer.arrowPath(from: dragOrigin, to: endPoint, penWidth: drawingState.penWidth).cgPath
+            // Tip (arrowhead) at the cursor (endPoint), tail at the drag origin.
+            path = ShapeRenderer.arrowPath(from: endPoint, to: dragOrigin, penWidth: drawingState.penWidth).cgPath
         }
 
         bitmapContext.addPath(path)

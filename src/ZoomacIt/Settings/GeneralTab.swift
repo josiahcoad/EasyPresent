@@ -1,43 +1,87 @@
 import SwiftUI
-import Carbon.HIToolbox
 import ServiceManagement
 
-/// Hotkey settings tab with key recorder controls.
+/// The single settings tab: activation, cursor appearance, and gesture reference.
 struct GeneralTab: View {
 
-    @AppStorage(Settings.Keys.zoomHotkeyKeyCode) private var zoomKeyCode: Int = Int(kVK_ANSI_1)
-    @AppStorage(Settings.Keys.zoomHotkeyModifiers) private var zoomModifiers: Int = Int(controlKey)
-    @AppStorage(Settings.Keys.liveZoomHotkeyKeyCode) private var liveZoomKeyCode: Int = Int(kVK_ANSI_4)
-    @AppStorage(Settings.Keys.liveZoomHotkeyModifiers) private var liveZoomModifiers: Int = Int(controlKey)
-    @AppStorage(Settings.Keys.drawHotkeyKeyCode) private var drawKeyCode: Int = Int(kVK_ANSI_2)
-    @AppStorage(Settings.Keys.drawHotkeyModifiers) private var drawModifiers: Int = Int(controlKey)
-    @AppStorage(Settings.Keys.breakHotkeyKeyCode) private var breakKeyCode: Int = Int(kVK_ANSI_3)
-    @AppStorage(Settings.Keys.breakHotkeyModifiers) private var breakModifiers: Int = Int(controlKey)
+    @AppStorage(Settings.Keys.holdModifier) private var holdModifierRaw: String = ActivationModifier.option.rawValue
+    @AppStorage(Settings.Keys.laserEnabled) private var laserEnabled: Bool = false
+    @AppStorage(Settings.Keys.haloColor) private var haloColorRaw: String = PenColor.yellow.rawValue
 
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
 
+    private var holdModifier: ActivationModifier { ActivationModifier(rawValue: holdModifierRaw) ?? .option }
+    private var sym: String { holdModifier.symbol }
+
+    private var holdModifierBinding: Binding<ActivationModifier> {
+        Binding(
+            get: { holdModifier },
+            set: { holdModifierRaw = $0.rawValue }
+        )
+    }
+
+    private var haloColor: Binding<PenColor> {
+        Binding(
+            get: { PenColor(rawValue: haloColorRaw) ?? .yellow },
+            set: { haloColorRaw = $0.rawValue }
+        )
+    }
+
     var body: some View {
         Form {
-            Section("Hotkeys") {
-                HotkeyRow(label: "Zoom", keyCode: $zoomKeyCode, modifiers: $zoomModifiers)
-                HotkeyRow(label: "Live Zoom", keyCode: $liveZoomKeyCode, modifiers: $liveZoomModifiers)
-                HotkeyRow(label: "Draw", keyCode: $drawKeyCode, modifiers: $drawModifiers)
-                HotkeyRow(label: "Break Timer", keyCode: $breakKeyCode, modifiers: $breakModifiers)
+            Section("Activation") {
+                Picker("Hold to draw", selection: holdModifierBinding) {
+                    ForEach(ActivationModifier.allCases, id: \.self) { mod in
+                        Text(mod.displayName).tag(mod)
+                    }
+                }
+            }
+
+            Section("Cursor") {
+                Picker("Halo Color", selection: haloColor) {
+                    ForEach(PenColor.allCases, id: \.self) { color in
+                        HStack {
+                            Circle()
+                                .fill(Color(nsColor: color.nsColor))
+                                .frame(width: 12, height: 12)
+                            Text(color.rawValue.capitalized)
+                        }
+                        .tag(color)
+                    }
+                }
+                Toggle("Trailing laser", isOn: $laserEnabled)
+            }
+
+            Section("Gestures") {
+                gestureRow("Box", "\(sym) + drag")
+                gestureRow("Arrow", "\(sym)⇧ + drag")
+                gestureRow("Toggle", "\(sym)Space")
+                gestureRow("Help", "⌥/")
+                gestureRow("Exit", "Release \(sym)")
             }
 
             Section {
                 Toggle("Launch at Login", isOn: launchAtLoginBinding)
+                Button("Launch Onboarding") {
+                    OnboardingCoordinator.shared.restart()
+                }
             }
         }
         .formStyle(.grouped)
-        .onChange(of: zoomKeyCode) { _, _ in reregisterHotkeys() }
-        .onChange(of: zoomModifiers) { _, _ in reregisterHotkeys() }
-        .onChange(of: liveZoomKeyCode) { _, _ in reregisterHotkeys() }
-        .onChange(of: liveZoomModifiers) { _, _ in reregisterHotkeys() }
-        .onChange(of: drawKeyCode) { _, _ in reregisterHotkeys() }
-        .onChange(of: drawModifiers) { _, _ in reregisterHotkeys() }
-        .onChange(of: breakKeyCode) { _, _ in reregisterHotkeys() }
-        .onChange(of: breakModifiers) { _, _ in reregisterHotkeys() }
+        .onChange(of: holdModifierRaw) { _, _ in
+            // The pin/unpin hotkey is <modifier>+Space, so re-register when it changes.
+            HotkeyManager.shared.reregisterHotkeys()
+        }
+    }
+
+    private func gestureRow(_ label: String, _ gesture: String) -> some View {
+        HStack {
+            Text(label)
+                .frame(width: 110, alignment: .leading)
+            Spacer()
+            Text(gesture)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var launchAtLoginBinding: Binding<Bool> {
@@ -56,29 +100,5 @@ struct GeneralTab: View {
                 }
             }
         )
-    }
-
-    private func reregisterHotkeys() {
-        HotkeyManager.shared.reregisterHotkeys()
-        // Notify StatusBarController to update menu hotkey labels
-        NotificationCenter.default.post(name: .hotkeysDidChange, object: nil)
-    }
-}
-
-// MARK: - Hotkey Row
-
-struct HotkeyRow: View {
-    let label: String
-    @Binding var keyCode: Int
-    @Binding var modifiers: Int
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .frame(width: 100, alignment: .leading)
-            Spacer()
-            KeyRecorderView(keyCode: $keyCode, modifiers: $modifiers)
-                .frame(width: 140, height: 28)
-        }
     }
 }

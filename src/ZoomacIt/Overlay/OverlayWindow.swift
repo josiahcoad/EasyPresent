@@ -1,13 +1,28 @@
 import AppKit
 
-/// A borderless, transparent window that sits above all other windows
-/// and captures input for Draw mode.
-final class OverlayWindow: NSWindow {
+/// A borderless, transparent panel that sits above all other windows for Draw mode.
+///
+/// When `nonactivating` is true it uses `.nonactivatingPanel` and refuses key status,
+/// so it can show the halo/laser and capture clicks WITHOUT stealing keyboard focus
+/// from the foreground app (keeping ⌥←/→ word-jump etc. working while ⌥ is held).
+final class OverlayWindow: NSPanel {
 
+    private var keyable = true
+
+    /// Activating overlay covering one screen (used by Still Zoom / Zoom→Draw).
     convenience init(for screen: NSScreen) {
+        self.init(contentRect: screen.frame, nonactivating: false)
+    }
+
+    /// `contentRect` may span a single display. `nonactivating` controls whether the
+    /// panel grabs keyboard focus (false = sticky/zoom-transition; true = spring hold).
+    convenience init(contentRect: NSRect, nonactivating: Bool) {
+        var style: NSWindow.StyleMask = [.borderless]
+        if nonactivating { style.insert(.nonactivatingPanel) }
+
         self.init(
-            contentRect: screen.frame,
-            styleMask: .borderless,
+            contentRect: contentRect,
+            styleMask: style,
             backing: .buffered,
             defer: false
         )
@@ -20,13 +35,19 @@ final class OverlayWindow: NSWindow {
         isReleasedWhenClosed = false
         acceptsMouseMovedEvents = true
         ignoresMouseEvents = false
+        hidesOnDeactivate = false
+        keyable = !nonactivating
     }
+
+    /// Promote a previously non-activating overlay to key-capable (used when a spring
+    /// session is pinned, so Esc / ⌘Z work in the dedicated drawing session).
+    func enableKey() { keyable = true }
 
     // MARK: - Overrides
 
-    /// Allow the window to become key so it can receive keyboard events.
-    override var canBecomeKey: Bool { true }
+    /// Only an activating (non-spring) overlay may become key; a spring overlay never
+    /// takes key status, so keyboard events keep flowing to the foreground app.
+    override var canBecomeKey: Bool { keyable }
 
-    /// Allow the window to become main.
-    override var canBecomeMain: Bool { true }
+    override var canBecomeMain: Bool { false }
 }

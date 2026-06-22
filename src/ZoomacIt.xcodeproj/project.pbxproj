@@ -109,7 +109,7 @@
 		A978FA296EF6E99DE42DE5A5 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		AD7667A522D320490BA4461A /* ZoomacItTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZoomacItTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AFD499A142CC237EF664DD96 /* BreakTimerWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakTimerWindow.swift; sourceTree = "<group>"; };
-		BD830BA2019F30C637E19AC9 /* ZoomacIt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZoomacIt.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BD830BA2019F30C637E19AC9 /* ZoomacIt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EasyPresent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE3023CD2A9E7BBC51D21E79 /* BreakTimerWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakTimerWindowController.swift; sourceTree = "<group>"; };
 		C35CEE9FA480AD8EA3412F68 /* BreakTimerStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakTimerStateTests.swift; sourceTree = "<group>"; };
 		C4861D0131871D035CC07327 /* KeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecorderView.swift; sourceTree = "<group>"; };
@@ -496,7 +496,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.x07jp27.ZoomacItTests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ZoomacIt.app/Contents/MacOS/ZoomacIt";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EasyPresent.app/Contents/MacOS/EasyPresent";
 			};
 			name = Debug;
 		};
@@ -510,8 +510,8 @@
 				DEVELOPMENT_TEAM = T74PC5F324;
 				INFOPLIST_FILE = ZoomacIt/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.x07jp27.ZoomacIt;
-				PRODUCT_NAME = ZoomacIt;
+				PRODUCT_BUNDLE_IDENTIFIER = com.josiahcoad.EasyPresent;
+				PRODUCT_NAME = EasyPresent;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -532,7 +532,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.x07jp27.ZoomacItTests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ZoomacIt.app/Contents/MacOS/ZoomacIt";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EasyPresent.app/Contents/MacOS/EasyPresent";
 			};
 			name = Release;
 		};
@@ -546,8 +546,8 @@
 				DEVELOPMENT_TEAM = T74PC5F324;
 				INFOPLIST_FILE = ZoomacIt/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.x07jp27.ZoomacIt;
-				PRODUCT_NAME = ZoomacIt;
+				PRODUCT_BUNDLE_IDENTIFIER = com.josiahcoad.EasyPresent;
+				PRODUCT_NAME = EasyPresent;
 				SDKROOT = macosx;
 			};
 			name = Debug;

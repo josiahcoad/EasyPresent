@@ -10,12 +10,8 @@ struct SettingsView: View {
             TabView {
                 GeneralTab()
                     .tabItem { Text("General") }
-                DrawTab()
-                    .tabItem { Text("Draw") }
-                ZoomTab()
-                    .tabItem { Text("Zoom") }
-                BreakTimerTab()
-                    .tabItem { Text("Break Timer") }
+                StatsTab()
+                    .tabItem { Text("Stats") }
             }
             .frame(minWidth: 480, minHeight: 320)
 
@@ -40,8 +36,38 @@ struct SettingsView: View {
         } message: {
             Text("All settings will be restored to their default values. This cannot be undone.")
         }
-        .onDisappear {
-            BreakTimerWindowController.stopTestSound()
+    }
+}
+
+// MARK: - Stats
+
+/// Read-only local usage counters.
+struct StatsTab: View {
+    private let stats = Settings.shared
+
+    var body: some View {
+        Form {
+            Section("Usage") {
+                statRow("Drawing sessions", stats.drawSessions)
+                statRow("Boxes drawn", stats.boxesDrawn)
+                statRow("Arrows drawn", stats.arrowsDrawn)
+            }
+            Section {
+                Text("Counted locally on this Mac. Nothing is sent anywhere.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func statRow(_ label: String, _ value: Int) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text("\(value)")
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
         }
     }
 }

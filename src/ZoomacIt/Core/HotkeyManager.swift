@@ -7,54 +7,50 @@ final class HotkeyManager: @unchecked Sendable {
 
     static let shared = HotkeyManager()
 
-    /// Called when the Draw hotkey (⌃2) is triggered.
+    /// Called when the Draw menu item is clicked (Draw is gesture-driven; no hotkey).
     var onDrawHotkey: (() -> Void)?
 
-    /// Called when the Still Zoom hotkey (⌃1) is triggered.
-    var onZoomHotkey: (() -> Void)?
+    /// Called when the Draw toggle hotkey (⌥Space) is triggered.
+    var onDrawToggleHotkey: (() -> Void)?
 
-    /// Called when the Break Timer hotkey (⌃3) is triggered.
-    var onBreakHotkey: (() -> Void)?
+    /// Called when the help hotkey (⌥?) is pressed / released — help shows while held.
+    var onHelpDown: (() -> Void)?
+    var onHelpUp: (() -> Void)?
 
-    /// Called when the Live Zoom hotkey (⌃4) is triggered.
-    var onLiveZoomHotkey: (() -> Void)?
-
-    private var hotKeyRef: EventHotKeyRef?
-    private var zoomHotKeyRef: EventHotKeyRef?
-    private var breakHotKeyRef: EventHotKeyRef?
-    private var liveZoomHotKeyRef: EventHotKeyRef?
+    private var drawToggleHotKeyRef: EventHotKeyRef?
+    private var helpHotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
 
     /// Signature used to identify our hot-key events ('ZmIt')
     private let hotKeySignature: OSType = 0x5A6D_4974 // 'ZmIt'
-    private let zoomHotKeyID: UInt32 = 0
-    private let drawHotKeyID: UInt32 = 1
-    private let breakHotKeyID: UInt32 = 2
-    private let liveZoomHotKeyID: UInt32 = 3
+    // Note: Zoom and Draw are gesture-driven (⌥ double-click / hold ⌥), not hotkeys.
+    private let drawToggleHotKeyID: UInt32 = 4
+    private let helpHotKeyID: UInt32 = 5
 
     private init() {}
 
     // MARK: - Public
 
     func start() {
-        guard hotKeyRef == nil else {
+        guard eventHandlerRef == nil else {
             NSLog("[HotkeyManager] Hot key already registered — skipping.")
             return
         }
 
-        // Install a Carbon event handler for kEventHotKeyPressed
-        var eventType = EventTypeSpec(
-            eventClass: OSType(kEventClassKeyboard),
-            eventKind: UInt32(kEventHotKeyPressed)
-        )
+        // Install a Carbon event handler for hot-key pressed AND released (the help
+        // hotkey shows its popover only while held).
+        var eventTypes = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
+        ]
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
         let status = InstallEventHandler(
             GetApplicationEventTarget(),
             hotKeyEventHandler,
-            1,
-            &eventType,
+            2,
+            &eventTypes,
             selfPtr,
             &eventHandlerRef
         )
@@ -64,105 +60,53 @@ final class HotkeyManager: @unchecked Sendable {
             return
         }
 
-        // Register Zoom hotkey
-        let zoomKeyID = EventHotKeyID(signature: hotKeySignature, id: zoomHotKeyID)
-        let zoomStatus = RegisterEventHotKey(
-            Settings.shared.zoomHotkeyKeyCode,
-            Settings.shared.zoomHotkeyModifiers,
-            zoomKeyID,
+        // Zoom and Draw are gesture-driven (⌥ double-click / hold ⌥) — no hotkeys.
+
+        // Register the pin/unpin toggle hotkey: <hold modifier> + Space.
+        let toggleModifier = Settings.shared.holdModifier.carbonFlag
+        let drawToggleKeyID = EventHotKeyID(signature: hotKeySignature, id: drawToggleHotKeyID)
+        let drawToggleStatus = RegisterEventHotKey(
+            UInt32(kVK_Space),
+            toggleModifier,
+            drawToggleKeyID,
             GetApplicationEventTarget(),
             0,
-            &zoomHotKeyRef
+            &drawToggleHotKeyRef
         )
 
-        guard zoomStatus == noErr else {
-            NSLog("[HotkeyManager] Failed to register zoom hotkey: %d", zoomStatus)
-            stop()
+        guard drawToggleStatus == noErr else {
+            NSLog("[HotkeyManager] Failed to register draw toggle hotkey: %d", drawToggleStatus)
             return
         }
 
-        NSLog("[HotkeyManager] Zoom hotkey registered: %@",
-              Settings.hotkeyDisplayString(keyCode: Settings.shared.zoomHotkeyKeyCode,
-                                           modifiers: Settings.shared.zoomHotkeyModifiers))
+        NSLog("[HotkeyManager] Draw toggle hotkey registered: %@",
+              Settings.hotkeyDisplayString(keyCode: UInt32(kVK_Space), modifiers: toggleModifier))
 
-        // Register Draw hotkey
-        let hotKeyID = EventHotKeyID(signature: hotKeySignature, id: drawHotKeyID)
-        let regStatus = RegisterEventHotKey(
-            Settings.shared.drawHotkeyKeyCode,
-            Settings.shared.drawHotkeyModifiers,
-            hotKeyID,
+        // Register the help hotkey: ⌥/ (Option+slash). Shows help while held.
+        let helpKeyID = EventHotKeyID(signature: hotKeySignature, id: helpHotKeyID)
+        let helpStatus = RegisterEventHotKey(
+            UInt32(kVK_ANSI_Slash),
+            UInt32(optionKey),
+            helpKeyID,
             GetApplicationEventTarget(),
             0,
-            &hotKeyRef
+            &helpHotKeyRef
         )
 
-        guard regStatus == noErr else {
-            NSLog("[HotkeyManager] Failed to register draw hotkey: %d", regStatus)
-            stop()
+        guard helpStatus == noErr else {
+            NSLog("[HotkeyManager] Failed to register help hotkey: %d", helpStatus)
             return
         }
-
-        NSLog("[HotkeyManager] Draw hotkey registered: %@",
-              Settings.hotkeyDisplayString(keyCode: Settings.shared.drawHotkeyKeyCode,
-                                           modifiers: Settings.shared.drawHotkeyModifiers))
-
-        // Register Break Timer hotkey
-        let breakKeyID = EventHotKeyID(signature: hotKeySignature, id: breakHotKeyID)
-        let breakStatus = RegisterEventHotKey(
-            Settings.shared.breakHotkeyKeyCode,
-            Settings.shared.breakHotkeyModifiers,
-            breakKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &breakHotKeyRef
-        )
-
-        guard breakStatus == noErr else {
-            NSLog("[HotkeyManager] Failed to register break hotkey: %d", breakStatus)
-            return
-        }
-
-        NSLog("[HotkeyManager] Break hotkey registered: %@",
-              Settings.hotkeyDisplayString(keyCode: Settings.shared.breakHotkeyKeyCode,
-                                           modifiers: Settings.shared.breakHotkeyModifiers))
-
-        // Register Live Zoom hotkey
-        let liveZoomKeyID = EventHotKeyID(signature: hotKeySignature, id: liveZoomHotKeyID)
-        let liveZoomStatus = RegisterEventHotKey(
-            Settings.shared.liveZoomHotkeyKeyCode,
-            Settings.shared.liveZoomHotkeyModifiers,
-            liveZoomKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &liveZoomHotKeyRef
-        )
-
-        guard liveZoomStatus == noErr else {
-            NSLog("[HotkeyManager] Failed to register live zoom hotkey: %d", liveZoomStatus)
-            return
-        }
-
-        NSLog("[HotkeyManager] Live Zoom hotkey registered: %@",
-              Settings.hotkeyDisplayString(keyCode: Settings.shared.liveZoomHotkeyKeyCode,
-                                           modifiers: Settings.shared.liveZoomHotkeyModifiers))
     }
 
     func stop() {
-        if let ref = zoomHotKeyRef {
+        if let ref = drawToggleHotKeyRef {
             UnregisterEventHotKey(ref)
-            zoomHotKeyRef = nil
+            drawToggleHotKeyRef = nil
         }
-        if let ref = hotKeyRef {
+        if let ref = helpHotKeyRef {
             UnregisterEventHotKey(ref)
-            hotKeyRef = nil
-        }
-        if let ref = breakHotKeyRef {
-            UnregisterEventHotKey(ref)
-            breakHotKeyRef = nil
-        }
-        if let ref = liveZoomHotKeyRef {
-            UnregisterEventHotKey(ref)
-            liveZoomHotKeyRef = nil
+            helpHotKeyRef = nil
         }
         if let handler = eventHandlerRef {
             RemoveEventHandler(handler)
@@ -195,21 +139,16 @@ final class HotkeyManager: @unchecked Sendable {
 
         guard hotKeyID.signature == hotKeySignature else { return }
 
-        if hotKeyID.id == zoomHotKeyID {
+        let pressed = GetEventKind(event) == UInt32(kEventHotKeyPressed)
+
+        if hotKeyID.id == drawToggleHotKeyID {
+            guard pressed else { return }
             DispatchQueue.main.async { [weak self] in
-                self?.onZoomHotkey?()
+                self?.onDrawToggleHotkey?()
             }
-        } else if hotKeyID.id == drawHotKeyID {
+        } else if hotKeyID.id == helpHotKeyID {
             DispatchQueue.main.async { [weak self] in
-                self?.onDrawHotkey?()
-            }
-        } else if hotKeyID.id == breakHotKeyID {
-            DispatchQueue.main.async { [weak self] in
-                self?.onBreakHotkey?()
-            }
-        } else if hotKeyID.id == liveZoomHotKeyID {
-            DispatchQueue.main.async { [weak self] in
-                self?.onLiveZoomHotkey?()
+                if pressed { self?.onHelpDown?() } else { self?.onHelpUp?() }
             }
         }
     }

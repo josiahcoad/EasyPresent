@@ -7,57 +7,97 @@ import ScreenCaptureKit
 @MainActor
 final class OverlayWindowController {
 
-    private var overlayWindow: OverlayWindow?
-    private var canvasView: DrawingCanvasView?
+    /// One overlay window + canvas per display. macOS's "Displays have separate Spaces"
+    /// prevents a single window from painting across displays, so we use one per screen.
+    private var overlayWindows: [OverlayWindow] = []
+    private var canvasViews: [DrawingCanvasView] = []
     private let backgroundImageOverride: CGImage?
+    /// When true, Draw mode was entered by holding Option and exits when Option is released.
+    private var springLoaded: Bool
 
-    init(backgroundImageOverride: CGImage? = nil) {
+    init(backgroundImageOverride: CGImage? = nil, springLoaded: Bool = false) {
         self.backgroundImageOverride = backgroundImageOverride
+        self.springLoaded = springLoaded
+    }
+
+    /// True while this session would exit on Option release (i.e. an unpinned hold).
+    var isSpringLoaded: Bool { springLoaded }
+
+    /// Pin a spring-loaded (hold-Option) session so it stays open after Option is released.
+    /// A pinned session is a dedicated drawing session, so we take key focus — that makes
+    /// Esc / ⌘Z work (spring/hold mode stays focus-free for ⌥ keyboard shortcuts).
+    func pinOpen() {
+        springLoaded = false
+        canvasViews.forEach { $0.exitsOnOptionRelease = false }
+        overlayWindows.forEach { $0.enableKey() }
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        let target = overlayWindows.first { $0.frame.contains(NSEvent.mouseLocation) } ?? overlayWindows.first
+        if let window = target {
+            window.makeKeyAndOrderFront(nil)
+            window.makeFirstResponder(window.contentView)
+        }
     }
 
     // MARK: - Public
 
     func showOverlay() {
-        guard let screen = NSScreen.screenContainingMouse ?? NSScreen.main else { return }
-
+        Settings.shared.drawSessions += 1  // local usage counter
         if let backgroundImageOverride {
-            // Zoom → Draw transition: use the frozen zoomed snapshot as background
-            self.presentOverlay(screen: screen, backgroundImage: backgroundImageOverride)
+            // Zoom → Draw transition: single-screen snapshot as background (activating).
+            guard let screen = NSScreen.screenContainingMouse ?? NSScreen.main else { return }
+            self.presentOverlay(on: screen, backgroundImage: backgroundImageOverride,
+                                nonactivating: false, makeKey: true)
+            NSApplication.shared.activate(ignoringOtherApps: true)
             return
         }
 
-        // Direct Draw entry (⌃2): transparent canvas over live desktop — no capture needed.
-        // OverlayWindow is already isOpaque=false / backgroundColor=.clear,
-        // so the desktop shows through when DrawingCanvasView draws nothing for the background.
-        self.presentOverlay(screen: screen, backgroundImage: nil)
+        // Presenter Draw: one transparent overlay per display so the halo/laser follow
+        // the cursor across all screens. A spring (hold-Option) session is NON-activating
+        // so it never steals keyboard focus; a sticky session activates normally.
+        let mouseScreen = NSScreen.screenContainingMouse ?? NSScreen.main
+        for screen in NSScreen.screens {
+            presentOverlay(on: screen, backgroundImage: nil,
+                           nonactivating: springLoaded,
+                           makeKey: !springLoaded && screen == mouseScreen)
+        }
+        if !springLoaded {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
     }
 
-    private func presentOverlay(screen: NSScreen, backgroundImage: CGImage?) {
-        let window = OverlayWindow(for: screen)
+    private func presentOverlay(on screen: NSScreen, backgroundImage: CGImage?,
+                                nonactivating: Bool, makeKey: Bool) {
+        let window = OverlayWindow(contentRect: screen.frame, nonactivating: nonactivating)
         let canvas = DrawingCanvasView(
             frame: NSRect(origin: .zero, size: screen.frame.size),
             backgroundImage: backgroundImage
         )
+        canvas.exitsOnOptionRelease = springLoaded
         canvas.onDismiss = { [weak self] in
             self?.dismiss()
         }
 
         window.contentView = canvas
-        window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(canvas)
+        window.setFrameOrigin(screen.frame.origin)
+        if makeKey {
+            window.makeKeyAndOrderFront(nil)
+            window.makeFirstResponder(canvas)
+        } else {
+            window.orderFrontRegardless()
+        }
 
-        // Ensure the app is active so the window receives events
-        NSApplication.shared.activate(ignoringOtherApps: true)
-
-        overlayWindow = window
-        canvasView = canvas
+        overlayWindows.append(window)
+        canvasViews.append(canvas)
     }
 
     func dismiss() {
-        overlayWindow?.orderOut(nil)
-        overlayWindow?.close()
-        overlayWindow = nil
-        canvasView = nil
+        guard !overlayWindows.isEmpty else { return }
+        for window in overlayWindows {
+            window.orderOut(nil)
+            window.close()
+        }
+        overlayWindows.removeAll()
+        canvasViews.removeAll()
 
         // Notify the app delegate
         if let appDelegate = NSApplication.shared.delegate as? AppDelegate {

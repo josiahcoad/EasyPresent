@@ -47,7 +47,7 @@ final class StatusBarController: NSObject {
         } else {
             // Fallback: use SF Symbol
             if let sfImage = NSImage(systemSymbolName: "pencil.and.outline",
-                                     accessibilityDescription: "ZoomacIt") {
+                                     accessibilityDescription: "EasyPresent") {
                 sfImage.isTemplate = true
                 button.image = sfImage
             } else {
@@ -63,31 +63,10 @@ final class StatusBarController: NSObject {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        let s = Settings.shared
-
-        let zoomItem = NSMenuItem(title: "Zoom", action: #selector(zoomAction),
-                                  keyEquivalent: Settings.keyCodeToMenuCharacter(s.zoomHotkeyKeyCode))
-        zoomItem.keyEquivalentModifierMask = Settings.carbonToNSEventModifiers(s.zoomHotkeyModifiers)
-        zoomItem.target = self
-        menu.addItem(zoomItem)
-
-        let drawItem = NSMenuItem(title: "Draw", action: #selector(drawAction),
-                                  keyEquivalent: Settings.keyCodeToMenuCharacter(s.drawHotkeyKeyCode))
-        drawItem.keyEquivalentModifierMask = Settings.carbonToNSEventModifiers(s.drawHotkeyModifiers)
+        // Draw (hold ⌥) is gesture-driven — no shortcut label.
+        let drawItem = NSMenuItem(title: "Draw", action: #selector(drawAction), keyEquivalent: "")
         drawItem.target = self
         menu.addItem(drawItem)
-
-        let breakItem = NSMenuItem(title: "Break", action: #selector(breakAction),
-                                   keyEquivalent: Settings.keyCodeToMenuCharacter(s.breakHotkeyKeyCode))
-        breakItem.keyEquivalentModifierMask = Settings.carbonToNSEventModifiers(s.breakHotkeyModifiers)
-        breakItem.target = self
-        menu.addItem(breakItem)
-
-        let liveZoomItem = NSMenuItem(title: "Live Zoom", action: #selector(liveZoomAction),
-                                      keyEquivalent: Settings.keyCodeToMenuCharacter(s.liveZoomHotkeyKeyCode))
-        liveZoomItem.keyEquivalentModifierMask = Settings.carbonToNSEventModifiers(s.liveZoomHotkeyModifiers)
-        liveZoomItem.target = self
-        menu.addItem(liveZoomItem)
 
         menu.addItem(.separator())
 
@@ -96,13 +75,13 @@ final class StatusBarController: NSObject {
         prefsItem.target = self
         menu.addItem(prefsItem)
 
-        let aboutItem = NSMenuItem(title: "About ZoomacIt", action: #selector(aboutAction), keyEquivalent: "")
+        let aboutItem = NSMenuItem(title: "About EasyPresent", action: #selector(aboutAction), keyEquivalent: "")
         aboutItem.target = self
         menu.addItem(aboutItem)
 
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: "Quit ZoomacIt", action: #selector(quitAction), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit EasyPresent", action: #selector(quitAction), keyEquivalent: "q")
         quitItem.keyEquivalentModifierMask = [.command]
         quitItem.target = self
         menu.addItem(quitItem)
@@ -112,20 +91,8 @@ final class StatusBarController: NSObject {
 
     // MARK: - Actions
 
-    @objc private func zoomAction() {
-        HotkeyManager.shared.onZoomHotkey?()
-    }
-
     @objc private func drawAction() {
         HotkeyManager.shared.onDrawHotkey?()
-    }
-
-    @objc private func breakAction() {
-        HotkeyManager.shared.onBreakHotkey?()
-    }
-
-    @objc private func liveZoomAction() {
-        HotkeyManager.shared.onLiveZoomHotkey?()
     }
 
     @objc private func preferencesAction() {
