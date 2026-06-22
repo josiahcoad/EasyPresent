@@ -25,6 +25,9 @@ brew install --cask --no-quarantine easypresent
 `--no-quarantine` skips the Gatekeeper prompt for this unsigned build. Omit it and you'll
 get the right-click-to-open step from Option A instead.
 
+> If Homebrew refuses with *"untrusted tap"* (only when `HOMEBREW_REQUIRE_TAP_TRUST` is set),
+> run `brew trust josiahcoad/tap` first.
+
 ## Using it
 
 | Gesture | Action |

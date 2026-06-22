@@ -22,6 +22,7 @@ See **[INSTALL.md](INSTALL.md)** for details. In short:
 brew tap josiahcoad/tap
 brew install --cask --no-quarantine easypresent
 ```
+(If Homebrew says the tap is untrusted, run `brew trust josiahcoad/tap` first.)
 
 ## Usage
 
