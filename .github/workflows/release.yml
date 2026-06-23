@@ -1,0 +1,79 @@
+name: Release
+
+# Cut a release by pushing a version tag:
+#   git tag v0.3.0 && git push origin v0.3.0
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (without leading v), e.g. 0.3.0"
+        required: true
+
+permissions:
+  contents: write   # create releases
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version
+        id: ver
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate Xcode project
+        run: brew install xcodegen && (cd src && xcodegen generate)
+
+      - name: Build (Release, ad-hoc signed)
+        run: |
+          xcodebuild -project src/EasyPresent.xcodeproj -scheme EasyPresent -configuration Release \
+            -derivedDataPath build-release \
+            CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" CODE_SIGN_ENTITLEMENTS="" \
+            build
+
+      - name: Package DMG
+        id: dmg
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          mkdir -p dist
+          STAGE="$(mktemp -d)"
+          cp -R build-release/Build/Products/Release/EasyPresent.app "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create -volname EasyPresent -srcfolder "$STAGE" -ov -format UDZO "dist/EasyPresent-v$V.dmg"
+          echo "sha=$(shasum -a 256 "dist/EasyPresent-v$V.dmg" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          gh release create "v$V" "dist/EasyPresent-v$V.dmg" --repo "${{ github.repository }}" \
+            --title "EasyPresent v$V" \
+            --notes "Update: \`brew update && brew upgrade easypresent\` — or download the DMG below." \
+            || gh release upload "v$V" "dist/EasyPresent-v$V.dmg" --repo "${{ github.repository }}" --clobber
+
+      - name: Bump Homebrew cask
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "No TAP_TOKEN secret set — skipping cask bump. (Add one to auto-update the tap.)"
+            exit 0
+          fi
+          V="${{ steps.ver.outputs.version }}"
+          SHA="${{ steps.dmg.outputs.sha }}"
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/josiahcoad/homebrew-tap.git" tap
+          cd tap
+          sed -i '' -E "s/^  version \".*\"/  version \"$V\"/" Casks/easypresent.rb
+          sed -i '' -E "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" Casks/easypresent.rb
+          git -c user.name="github-actions[bot]" -c user.email="github-actions[bot]@users.noreply.github.com" \
+            commit -aqm "easypresent $V"
+          git push -q

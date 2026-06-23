@@ -1,13 +1,26 @@
 # Releasing EasyPresent
 
-## One command
+## Recommended: tag → CI does the rest
+
+Push a version tag and GitHub Actions (`.github/workflows/release.yml`) builds the app,
+packages the DMG, creates the release, and bumps the Homebrew cask:
 
 ```bash
-make release-dmg VERSION=0.2.0
+git tag v0.3.0 && git push origin v0.3.0
 ```
-This builds the DMG, creates the GitHub release (uploading the DMG), and bumps the Homebrew
-cask (`version` + `sha256`) in `josiahcoad/homebrew-tap`. Requires `gh` authenticated with
-write access to both repos. The manual steps below document what it does.
+
+**One-time setup for the cask bump:** add a repo secret **`TAP_TOKEN`** in
+`josiahcoad/EasyPresent` (Settings → Secrets and variables → Actions) — a token with write
+access to `josiahcoad/homebrew-tap` (a fine-grained PAT scoped to that repo is ideal). Without
+it, CI still builds + publishes the release and just skips the cask bump.
+
+## Local one-liner (fallback)
+
+```bash
+make release-dmg VERSION=0.3.0
+```
+Same chain, run from your Mac (requires `gh` authenticated with write to both repos). The
+manual steps below document what both paths do.
 
 ## 1. Build the DMG
 
