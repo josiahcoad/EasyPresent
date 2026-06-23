@@ -46,6 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager.onPreferencesHotkey = { [weak self] in
             self?.showPreferences()
         }
+        hotkeyManager.onColorNext = { [weak self] in
+            self?.cycleColor(forward: true)
+        }
+        hotkeyManager.onColorPrev = { [weak self] in
+            self?.cycleColor(forward: false)
+        }
         hotkeyManager.start()
 
         startOptionPoll()
@@ -167,12 +173,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         controller.showOverlay()
         overlayController = controller
+        hotkeyManager.enableColorCycling()
         OnboardingCoordinator.shared.drawModeEntered()
+    }
+
+    /// Cycle the active draw color through PenColor.allCases (⌥↑ next, ⌥↓ previous)
+    /// and repaint the live overlay so the change is visible immediately.
+    private func cycleColor(forward: Bool) {
+        let current = Settings.shared.color
+        Settings.shared.color = forward ? current.next : current.previous
+        overlayController?.refreshColor()
     }
 
     /// Called from OverlayWindowController when the user exits draw mode (Escape / right-click)
     func drawModeDidEnd() {
         overlayController = nil
+        hotkeyManager.disableColorCycling()
         OnboardingCoordinator.shared.drawModeExited()
         if let savedImage = zoomSourceForDrawReturn {
             zoomSourceForDrawReturn = nil
@@ -513,6 +529,7 @@ final class OnboardingCoordinator {
             \(mod) + move:  halo
             \(mod) + drag:  box
             \(mod)⇧ + drag:  arrow
+            \(mod)↑ / \(mod)↓:  color
             \(toggle):  toggle
             """
         }

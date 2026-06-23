@@ -38,6 +38,11 @@ final class OverlayWindowController {
         }
     }
 
+    /// Repaint every canvas after the active draw color changed (⌥↑ / ⌥↓ cycling).
+    func refreshColor() {
+        canvasViews.forEach { $0.needsDisplay = true }
+    }
+
     // MARK: - Public
 
     func showOverlay() {

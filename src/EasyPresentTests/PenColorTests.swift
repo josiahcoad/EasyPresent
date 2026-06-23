@@ -44,4 +44,37 @@ final class PenColorTests: XCTestCase {
             XCTAssertEqual(restored, color, "Round-trip failed for \(color)")
         }
     }
+
+    // MARK: - Color cycling (⌥↑ / ⌥↓ while drawing)
+
+    func testNextAdvancesInOrder() {
+        XCTAssertEqual(PenColor.red.next, .green)
+        XCTAssertEqual(PenColor.green.next, .cyan)
+    }
+
+    func testNextWrapsAround() {
+        XCTAssertEqual(PenColor.allCases.last?.next, PenColor.allCases.first)
+    }
+
+    func testPreviousWrapsAround() {
+        XCTAssertEqual(PenColor.allCases.first?.previous, PenColor.allCases.last)
+    }
+
+    func testNextAndPreviousAreInverse() {
+        for color in PenColor.allCases {
+            XCTAssertEqual(color.next.previous, color)
+            XCTAssertEqual(color.previous.next, color)
+        }
+    }
+
+    func testCyclingAllForwardVisitsEveryColorOnce() {
+        var seen: [PenColor] = []
+        var c = PenColor.red
+        for _ in PenColor.allCases {
+            seen.append(c)
+            c = c.next
+        }
+        XCTAssertEqual(Set(seen).count, PenColor.allCases.count)
+        XCTAssertEqual(c, .red, "A full cycle should return to the start")
+    }
 }

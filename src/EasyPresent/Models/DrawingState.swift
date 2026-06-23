@@ -15,6 +15,20 @@ enum PenColor: String, Sendable, CaseIterable {
         }
     }
 
+    /// The next color in `allCases`, wrapping around (⌥↑ while drawing).
+    var next: PenColor {
+        let all = PenColor.allCases
+        let i = all.firstIndex(of: self) ?? 0
+        return all[(i + 1) % all.count]
+    }
+
+    /// The previous color in `allCases`, wrapping around (⌥↓ while drawing).
+    var previous: PenColor {
+        let all = PenColor.allCases
+        let i = all.firstIndex(of: self) ?? 0
+        return all[(i - 1 + all.count) % all.count]
+    }
+
     /// Map from key character to pen color.
     static func from(character: String) -> PenColor? {
         switch character.uppercased() {

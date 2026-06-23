@@ -36,7 +36,7 @@ struct GeneralTab: View {
                     }
                 }
                 HStack {
-                    Text("Pin / unpin shortcut")
+                    Text("Toggle shortcut")
                     Spacer()
                     KeyRecorderView(keyCode: $toggleKeyCode, modifiers: $toggleModifiers)
                         .frame(width: 140, height: 28)
@@ -61,7 +61,8 @@ struct GeneralTab: View {
             Section("Gestures") {
                 gestureRow("Box", "\(sym) + drag")
                 gestureRow("Arrow", "\(sym)⇧ + drag")
-                gestureRow("Pin / unpin", toggleStr)
+                gestureRow("Toggle", toggleStr)
+                gestureRow("Cycle color", "\(sym)↑ / \(sym)↓")
                 gestureRow("Help", "⌥?")
                 gestureRow("Preferences", "⌥,")
                 gestureRow("Exit", "Release \(sym)")

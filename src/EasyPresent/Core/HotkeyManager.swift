@@ -20,9 +20,15 @@ final class HotkeyManager: @unchecked Sendable {
     /// Called when the Preferences hotkey (⌥,) is pressed.
     var onPreferencesHotkey: (() -> Void)?
 
+    /// Called when ⌥↑ / ⌥↓ are pressed (color cycling, only active while drawing).
+    var onColorNext: (() -> Void)?
+    var onColorPrev: (() -> Void)?
+
     private var drawToggleHotKeyRef: EventHotKeyRef?
     private var helpHotKeyRef: EventHotKeyRef?
     private var prefsHotKeyRef: EventHotKeyRef?
+    private var colorNextHotKeyRef: EventHotKeyRef?
+    private var colorPrevHotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
 
     /// Signature used to identify our hot-key events ('ZmIt')
@@ -31,6 +37,8 @@ final class HotkeyManager: @unchecked Sendable {
     private let drawToggleHotKeyID: UInt32 = 4
     private let helpHotKeyID: UInt32 = 5
     private let prefsHotKeyID: UInt32 = 6
+    private let colorNextHotKeyID: UInt32 = 7
+    private let colorPrevHotKeyID: UInt32 = 8
 
     private init() {}
 
@@ -143,8 +151,29 @@ final class HotkeyManager: @unchecked Sendable {
 
     /// Re-register all hotkeys with current Settings values.
     func reregisterHotkeys() {
+        let cycling = colorNextHotKeyRef != nil
         stop()
+        disableColorCycling()
         start()
+        if cycling { enableColorCycling() }
+    }
+
+    /// Register <hold modifier>+Up / +Down for color cycling. Only active while drawing,
+    /// so normal Option+Arrow paragraph navigation is unaffected the rest of the time.
+    func enableColorCycling() {
+        guard colorNextHotKeyRef == nil else { return }
+        let mod = Settings.shared.holdModifier.carbonFlag
+        RegisterEventHotKey(UInt32(kVK_UpArrow), mod,
+                            EventHotKeyID(signature: hotKeySignature, id: colorNextHotKeyID),
+                            GetApplicationEventTarget(), 0, &colorNextHotKeyRef)
+        RegisterEventHotKey(UInt32(kVK_DownArrow), mod,
+                            EventHotKeyID(signature: hotKeySignature, id: colorPrevHotKeyID),
+                            GetApplicationEventTarget(), 0, &colorPrevHotKeyRef)
+    }
+
+    func disableColorCycling() {
+        if let r = colorNextHotKeyRef { UnregisterEventHotKey(r); colorNextHotKeyRef = nil }
+        if let r = colorPrevHotKeyRef { UnregisterEventHotKey(r); colorPrevHotKeyRef = nil }
     }
 
     // MARK: - Event Processing
@@ -180,6 +209,16 @@ final class HotkeyManager: @unchecked Sendable {
             guard pressed else { return }
             DispatchQueue.main.async { [weak self] in
                 self?.onPreferencesHotkey?()
+            }
+        } else if hotKeyID.id == colorNextHotKeyID {
+            guard pressed else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.onColorNext?()
+            }
+        } else if hotKeyID.id == colorPrevHotKeyID {
+            guard pressed else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.onColorPrev?()
             }
         }
     }
