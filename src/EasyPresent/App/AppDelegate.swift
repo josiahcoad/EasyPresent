@@ -42,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager.onHelpUp = {
             OnboardingCoordinator.shared.hideHelp()
         }
+        hotkeyManager.onPreferencesHotkey = { [weak self] in
+            self?.showPreferences()
+        }
         hotkeyManager.start()
 
         startOptionPoll()
@@ -426,7 +429,7 @@ final class OnboardingCoordinator {
         refresh()
     }
 
-    /// Help popover — shown only while ⌥/ is held. During onboarding's final step,
+    /// Help popover — shown only while ⌥? (Option+/) is held. During onboarding's final step,
     /// actually showing help is what advances to the congrats.
     func showHelp() { helpVisible = true; refresh() }
     func hideHelp() {
@@ -477,7 +480,7 @@ final class OnboardingCoordinator {
 
     private func currentText() -> String? {
         let mod = Settings.shared.holdModifier.symbol
-        // Help popover (⌥/ held) takes priority over everything.
+        // Help popover (⌥? held) takes priority over everything.
         if helpVisible {
             return """
             EasyPresent — controls
@@ -495,7 +498,7 @@ final class OnboardingCoordinator {
             case .releaseToClear: return "Let go of \(mod) — your drawing clears"
             case .pin:            return "Hold \(mod) again, then tap Space to keep it on"
             case .unpin:          return "Tap \(mod)Space again to turn it off"
-            case .tryHelp:        return "Last thing — press ⌥/ any time to see this help"
+            case .tryHelp:        return "Last thing — press ⌥? any time to see this help"
             case .done:           return nil
             }
         }

@@ -13,12 +13,16 @@ final class HotkeyManager: @unchecked Sendable {
     /// Called when the Draw toggle hotkey (⌥Space) is triggered.
     var onDrawToggleHotkey: (() -> Void)?
 
-    /// Called when the help hotkey (⌥?) is pressed / released — help shows while held.
+    /// Called when the help hotkey (⌥/) is pressed / released — help shows while held.
     var onHelpDown: (() -> Void)?
     var onHelpUp: (() -> Void)?
 
+    /// Called when the Preferences hotkey (⌥,) is pressed.
+    var onPreferencesHotkey: (() -> Void)?
+
     private var drawToggleHotKeyRef: EventHotKeyRef?
     private var helpHotKeyRef: EventHotKeyRef?
+    private var prefsHotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
 
     /// Signature used to identify our hot-key events ('ZmIt')
@@ -26,6 +30,7 @@ final class HotkeyManager: @unchecked Sendable {
     // Note: Zoom and Draw are gesture-driven (⌥ double-click / hold ⌥), not hotkeys.
     private let drawToggleHotKeyID: UInt32 = 4
     private let helpHotKeyID: UInt32 = 5
+    private let prefsHotKeyID: UInt32 = 6
 
     private init() {}
 
@@ -97,6 +102,22 @@ final class HotkeyManager: @unchecked Sendable {
             NSLog("[HotkeyManager] Failed to register help hotkey: %d", helpStatus)
             return
         }
+
+        // Register the Preferences hotkey: ⌥, (Option+comma).
+        let prefsKeyID = EventHotKeyID(signature: hotKeySignature, id: prefsHotKeyID)
+        let prefsStatus = RegisterEventHotKey(
+            UInt32(kVK_ANSI_Comma),
+            UInt32(optionKey),
+            prefsKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &prefsHotKeyRef
+        )
+
+        guard prefsStatus == noErr else {
+            NSLog("[HotkeyManager] Failed to register preferences hotkey: %d", prefsStatus)
+            return
+        }
     }
 
     func stop() {
@@ -107,6 +128,10 @@ final class HotkeyManager: @unchecked Sendable {
         if let ref = helpHotKeyRef {
             UnregisterEventHotKey(ref)
             helpHotKeyRef = nil
+        }
+        if let ref = prefsHotKeyRef {
+            UnregisterEventHotKey(ref)
+            prefsHotKeyRef = nil
         }
         if let handler = eventHandlerRef {
             RemoveEventHandler(handler)
@@ -149,6 +174,11 @@ final class HotkeyManager: @unchecked Sendable {
         } else if hotKeyID.id == helpHotKeyID {
             DispatchQueue.main.async { [weak self] in
                 if pressed { self?.onHelpDown?() } else { self?.onHelpUp?() }
+            }
+        } else if hotKeyID.id == prefsHotKeyID {
+            guard pressed else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.onPreferencesHotkey?()
             }
         }
     }

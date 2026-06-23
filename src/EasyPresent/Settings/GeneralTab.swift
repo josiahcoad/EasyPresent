@@ -56,7 +56,8 @@ struct GeneralTab: View {
                 gestureRow("Box", "\(sym) + drag")
                 gestureRow("Arrow", "\(sym)⇧ + drag")
                 gestureRow("Toggle", "\(sym)Space")
-                gestureRow("Help", "⌥/")
+                gestureRow("Help", "⌥?")
+                gestureRow("Preferences", "⌥,")
                 gestureRow("Exit", "Release \(sym)")
             }
 
