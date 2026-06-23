@@ -48,7 +48,8 @@ gh repo clone "$TAP_REPO" "$TAP" -- --quiet
 CASK="$TAP/Casks/easypresent.rb"
 sed -i '' -E "s/^  version \".*\"/  version \"${VERSION}\"/" "$CASK"
 sed -i '' -E "s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" "$CASK"
-git -C "$TAP" commit -aqm "easypresent ${VERSION}"
+git -C "$TAP" -c user.name="Josiah Coad" -c user.email="josiah.coad@langchain.dev" \
+  commit -aqm "easypresent ${VERSION}"
 git -C "$TAP" push -q
 rm -rf "$TAP"
 
