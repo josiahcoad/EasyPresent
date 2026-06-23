@@ -11,7 +11,7 @@ VERSION     ?= 0.0.0
 -include .env
 export
 
-.PHONY: build test run release clean generate notarize dmg release-dmg docs docs-build
+.PHONY: build test run release clean generate notarize dmg release-dmg
 
 # One command to ship an ad-hoc release: build DMG + GitHub release + bump Homebrew cask.
 release-dmg:
@@ -75,9 +75,3 @@ clean:
 
 generate:
 	cd src && xcodegen generate
-
-docs:
-	cd docs && npm run docs:dev
-
-docs-build:
-	cd docs && npm run docs:build

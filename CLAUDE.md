@@ -57,7 +57,9 @@ the GitHub release, and bumps the Homebrew cask in `josiahcoad/homebrew-tap`. Se
 - **Entry point**: explicit `main.swift` with `NSApp.run()`. Do NOT add `@main`.
 - **Hotkeys**: Carbon `RegisterEventHotKey` only (no `CGEventTap` → no Accessibility). IDs:
   drawToggle=4 (⌥Space), help=5 (⌥/, press+release for hold-to-show), prefs=6 (⌥,).
-- **LSUIElement**: `Info.plist` has `LSUIElement=true` (no Dock icon); the plist is manual.
+- **LSUIElement / Info.plist**: `Info.plist` has `LSUIElement=true` (no Dock icon). `project.yml`
+  references it via `INFOPLIST_FILE:` only — do NOT add xcodegen's `info:` directive; it
+  overwrites the manual plist and strips required keys (`LSUIElement`, `NSPrincipalClass`).
 - **Signing**: `project.yml` keeps `Manual` / `DEVELOPMENT_TEAM: T74PC5F324`; local + release
   builds override to ad-hoc (`CODE_SIGN_IDENTITY="-"`). The app needs no TCC permissions, so
   ad-hoc is fine; each ad-hoc rebuild changes identity (matters only if you re-add notarization).
