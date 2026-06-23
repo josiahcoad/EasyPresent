@@ -33,11 +33,9 @@ Hold **⌥ Option** and the cursor gets a halo + crosshair. While held:
 | **⌥ + move** | Halo cursor (+ laser trail if enabled) |
 | **⌥ + drag** | Draw a box |
 | **⌥⇧ + drag** | Draw an arrow (tip at the cursor) |
-| **⌥Space** | Pin draw mode on / off (stays after you release ⌥) |
-| **⌘Z** | Undo the last shape |
+| **⌥Space** | Toggle draw mode (stays on after you release ⌥) |
 | **⌥?** (hold) | Show the help card |
 | **⌥,** | Open Settings |
-| Release **⌥** / **Esc** | Exit — everything clears |
 
 A guided onboarding runs on first launch (replay it any time from **Settings → General →
 Launch Onboarding**), and brief hints appear for your first few sessions.

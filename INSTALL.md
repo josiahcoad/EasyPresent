@@ -35,9 +35,7 @@ get the right-click-to-open step from Option B instead.
 | Hold **⌥** + move | Halo cursor (+ optional laser trail) |
 | **⌥ + drag** | Draw a box |
 | **⌥⇧ + drag** | Draw an arrow (tip at cursor) |
-| **⌥Space** | Pin draw mode on / off |
-| **⌘Z** | Undo last shape |
-| Release **⌥** / **Esc** | Exit |
+| **⌥Space** | Toggle draw mode (stays on after releasing ⌥) |
 
 The hold modifier (⌥/⌃/⌘), halo color, and the trailing laser are configurable in
 **menu bar icon → Settings**.
