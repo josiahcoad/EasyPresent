@@ -33,6 +33,7 @@ final class OverlayWindow: NSPanel {
         level = .init(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
+        animationBehavior = .none  // appear instantly — no system fade/slide-in
         acceptsMouseMovedEvents = true
         ignoresMouseEvents = false
         hidesOnDeactivate = false
