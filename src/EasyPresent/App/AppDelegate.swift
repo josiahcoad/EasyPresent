@@ -491,7 +491,7 @@ final class OnboardingCoordinator {
             switch step {
             case .holdToEnter:    return "👋 Hold \(mod) to start drawing"
             case .drawBox:        return "Now drag to draw a box"
-            case .drawArrow:      return "Hold ⇧ Shift and drag to draw an arrow"
+            case .drawArrow:      return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .releaseToClear: return "Let go of \(mod) — your drawing clears"
             case .pin:            return "Hold \(mod) again, then tap Space to keep it on"
             case .unpin:          return "Tap \(mod)Space again to turn it off"

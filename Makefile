@@ -1,10 +1,10 @@
-PROJECT      = src/ZoomacIt.xcodeproj
-SCHEME       = ZoomacIt
-TEST_SCHEME  = ZoomacItTests
+PROJECT      = src/EasyPresent.xcodeproj
+SCHEME       = EasyPresent
+TEST_SCHEME  = EasyPresentTests
 BUILD_DIR    = $(CURDIR)/build
-APP_NAME     = ZoomacIt
+APP_NAME     = EasyPresent
 RELEASE_APP  = $(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app
-ENTITLEMENTS = $(CURDIR)/src/ZoomacIt/Resources/ZoomacIt-Release.entitlements
+ENTITLEMENTS = $(CURDIR)/src/EasyPresent/Resources/EasyPresent-Release.entitlements
 VERSION     ?= 0.0.0
 
 # Load secrets from .env (if present)

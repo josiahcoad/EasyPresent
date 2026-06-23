@@ -3,7 +3,7 @@
 ## 1. Build the DMG
 
 ```bash
-xcodebuild -project src/ZoomacIt.xcodeproj -scheme ZoomacIt -configuration Release \
+xcodebuild -project src/EasyPresent.xcodeproj -scheme EasyPresent -configuration Release \
   -derivedDataPath build-release \
   CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
   CODE_SIGN_ENTITLEMENTS="" build
