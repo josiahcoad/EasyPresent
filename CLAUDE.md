@@ -56,7 +56,10 @@ the GitHub release, and bumps the Homebrew cask in `josiahcoad/homebrew-tap`. Se
 
 - **Entry point**: explicit `main.swift` with `NSApp.run()`. Do NOT add `@main`.
 - **Hotkeys**: Carbon `RegisterEventHotKey` only (no `CGEventTap` → no Accessibility). IDs:
-  drawToggle=4 (⌥Space), help=5 (⌥/, press+release for hold-to-show), prefs=6 (⌥,).
+  drawToggle=4 (⌥Space), help=5 (⌥/, press+release for hold-to-show), prefs=6 (⌥,),
+  colorNext=7 (⌥↑) / colorPrev=8 (⌥↓). Color-cycle keys are registered **only while a draw
+  session is active** (`enableColorCycling()` on enter, `disableColorCycling()` on exit) so
+  normal ⌥+Arrow paragraph navigation is untouched the rest of the time.
 - **LSUIElement / Info.plist**: `Info.plist` has `LSUIElement=true` (no Dock icon). `project.yml`
   references it via `INFOPLIST_FILE:` only — do NOT add xcodegen's `info:` directive; it
   overwrites the manual plist and strips required keys (`LSUIElement`, `NSPrincipalClass`).

@@ -9,10 +9,13 @@ packages the DMG, creates the release, and bumps the Homebrew cask:
 git tag v0.3.0 && git push origin v0.3.0
 ```
 
-**One-time setup for the cask bump:** add a repo secret **`TAP_TOKEN`** in
-`josiahcoad/EasyPresent` (Settings → Secrets and variables → Actions) — a token with write
-access to `josiahcoad/homebrew-tap` (a fine-grained PAT scoped to that repo is ideal). Without
-it, CI still builds + publishes the release and just skips the cask bump.
+**One-time setup for the cask bump (already done):** the repo secret **`TAP_DEPLOY_KEY`** in
+`josiahcoad/EasyPresent` holds the private half of an ed25519 **deploy key** registered with
+write access on `josiahcoad/homebrew-tap` only (scoped to that one repo — no broad PAT). CI
+clones the tap over SSH with that key to bump `version`/`sha256`. Without the secret, CI still
+builds + publishes the release and just skips the cask bump. To rotate: generate a new key,
+`gh repo deploy-key add key.pub --repo josiahcoad/homebrew-tap --allow-write`, then
+`gh secret set TAP_DEPLOY_KEY --repo josiahcoad/EasyPresent < key`.
 
 ## Local one-liner (fallback)
 
