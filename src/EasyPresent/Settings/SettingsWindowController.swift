@@ -24,6 +24,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.center()
         window.isReleasedWhenClosed = false
         window.delegate = self
+        // The grouped Form sits on a textured grey backdrop. The default window
+        // background is plain white, which produced a visible white stripe
+        // between the tab picker and the form. Matching them removes that band.
+        window.backgroundColor = NSColor.windowBackgroundColor
         window.makeKeyAndOrderFront(nil)
 
         NSApp.activate(ignoringOtherApps: true)

@@ -16,7 +16,9 @@ struct SettingsView: View {
             StatsTab()
                 .tabItem { Text("Stats") }
         }
-        .frame(minWidth: 520, minHeight: 480)
+        .padding(.top, 12)                                     // clear the title bar
+        .background(Color(NSColor.windowBackgroundColor))      // match each tab's form
+        .frame(minWidth: 520, minHeight: 500)
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Button("Reset to Defaults") {
@@ -60,6 +62,8 @@ struct StatsTab: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 
     private func statRow(_ label: String, _ value: Int) -> some View {
@@ -215,6 +219,8 @@ struct AppearanceTab: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }
 
