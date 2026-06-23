@@ -44,6 +44,7 @@ Hold **⌥ Option** and the cursor gets a halo + crosshair. While held:
 | **⌥ + move** | Halo cursor (+ laser trail if enabled) |
 | **⌥ + drag** | Draw a box |
 | **⌥⇧ + drag** | Draw an arrow (tip at the cursor) |
+| **⌥↑ / ⌥↓** | Cycle the draw color |
 | **⌥Space** | Toggle draw mode (stays on after you release ⌥) |
 | **⌥?** (hold) | Show the help card |
 | **⌥,** | Open Settings |

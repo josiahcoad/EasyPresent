@@ -189,6 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let current = Settings.shared.color
         Settings.shared.color = forward ? current.next : current.previous
         overlayController?.refreshColor()
+        OnboardingCoordinator.shared.colorCycled()
     }
 
     /// Called from OverlayWindowController when the user exits draw mode (Escape / right-click)
@@ -336,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindowController?.showWindow()
         // Rebuild menu when settings may have changed (hotkey labels)
         statusBarController?.rebuildMenu()
+        OnboardingCoordinator.shared.settingsOpened()
     }
 }
 
@@ -423,7 +425,7 @@ private final class HintContentView: NSView {
 final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
-    private enum Step { case holdToEnter, drawBox, drawArrow, releaseToClear, pin, unpin, tryHelp, done }
+    private enum Step { case holdToEnter, drawBox, drawArrow, cycleColor, releaseToClear, pin, unpin, tryHelp, openSettings, done }
 
     private var step: Step = .done
     private var active = false
@@ -465,9 +467,20 @@ final class OnboardingCoordinator {
     func recordShape(_ type: ShapeType) {
         if active {
             if step == .drawBox, type == .rectangle { step = .drawArrow }
-            else if step == .drawArrow, type == .arrow { step = .releaseToClear }
+            else if step == .drawArrow, type == .arrow { step = .cycleColor }
         }
         refresh()
+    }
+
+    /// The draw color was cycled with ⌥↑ / ⌥↓.
+    func colorCycled() {
+        if active, step == .cycleColor { step = .releaseToClear }
+        refresh()
+    }
+
+    /// The Settings window was opened (⌥, or the menu bar) — final onboarding step.
+    func settingsOpened() {
+        if active, step == .openSettings { complete() }
     }
 
     func pinned() {
@@ -481,7 +494,7 @@ final class OnboardingCoordinator {
     func showHelp() { helpVisible = true; refresh() }
     func hideHelp() {
         helpVisible = false
-        if active, step == .tryHelp { complete(); return }
+        if active, step == .tryHelp { step = .openSettings; refresh(); return }
         refresh()
     }
 
@@ -544,10 +557,12 @@ final class OnboardingCoordinator {
             case .holdToEnter:    return "👋 Hold \(mod) to start drawing"
             case .drawBox:        return "Now drag to draw a box"
             case .drawArrow:      return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
+            case .cycleColor:     return "Press \(mod)↑ / \(mod)↓ to change color"
             case .releaseToClear: return "Let go of \(mod) — your drawing clears"
             case .pin:            return "Hold \(mod) again, then press \(toggle) to keep it on"
             case .unpin:          return "Press \(toggle) again to turn it off"
-            case .tryHelp:        return "Last thing — press ⌥? any time to see this help"
+            case .tryHelp:        return "Press ⌥? any time to see this help"
+            case .openSettings:   return "Press \(mod), to open Settings"
             case .done:           return nil
             }
         }

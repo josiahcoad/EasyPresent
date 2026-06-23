@@ -78,6 +78,12 @@ final class DrawingCanvasView: NSView {
     /// Repaint timer that ages out trail points while the trail is non-empty.
     private var laserTimer: Timer?
 
+    /// Pins the halo to the live cursor by re-reading the global mouse location every
+    /// tick and converting through the window. This is self-correcting: it stays exact
+    /// even if the overlay window is repositioned after it appears (which otherwise made
+    /// the halo "slide out" near screen edges) or the cursor crosses displays.
+    private var cursorTrackTimer: Timer?
+
     /// Tracking area so `mouseMoved` fires across the whole view (no button down).
     private var mouseTrackingArea: NSTrackingArea?
 
@@ -280,15 +286,32 @@ final class DrawingCanvasView: NSView {
             CGDisplayHideCursor(CGMainDisplayID())
             didHideCursor = true
         }
-        // Seed the halo at the cursor on the NEXT runloop tick: the window is positioned
-        // (setFrameOrigin / orderFront) AFTER the content view is attached, so the frame
-        // isn't final here — seeding now would place the halo at an offset.
-        DispatchQueue.main.async { [weak self] in
-            guard let self, let window = self.window else { return }
-            let winPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
-            self.cursorPoint = self.convert(winPoint, from: nil)
-            self.cursorInside = self.bounds.contains(self.cursorPoint)
-            self.needsDisplay = true
+        // Pin the halo to the cursor continuously. A one-shot seed isn't enough: the
+        // window can still be repositioned by AppKit just after it appears, which would
+        // leave the halo drawn at stale window-local coordinates until the first move.
+        syncCursorToGlobalMouse()
+        startCursorTrackingIfNeeded()
+    }
+
+    /// Read the current global mouse position and convert it into this view's coordinates.
+    private func syncCursorToGlobalMouse() {
+        guard let window else { return }
+        let local = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+        let inside = bounds.contains(local)
+        if local != cursorPoint || inside != cursorInside {
+            cursorPoint = local
+            cursorInside = inside
+            needsDisplay = true
+        }
+    }
+
+    /// ~120 Hz timer that keeps the halo glued to the cursor for as long as the overlay is up.
+    private func startCursorTrackingIfNeeded() {
+        guard cursorTrackTimer == nil else { return }
+        cursorTrackTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.syncCursorToGlobalMouse()
+            }
         }
     }
 
@@ -297,6 +320,8 @@ final class DrawingCanvasView: NSView {
         if newWindow == nil {
             laserTimer?.invalidate()
             laserTimer = nil
+            cursorTrackTimer?.invalidate()
+            cursorTrackTimer = nil
             laserTrail.removeAll()
             if didHideCursor {
                 CGDisplayShowCursor(CGMainDisplayID())
