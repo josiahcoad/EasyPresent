@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -49,7 +50,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         startOptionPoll()
 
+        // Prompt for Accessibility so we can skip activating Draw mode while typing in a
+        // text field. If denied, activation simply works everywhere (no text-field skip).
+        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(opts)
+
         OnboardingCoordinator.shared.startIfFirstRun()
+    }
+
+    /// True if the system-wide focused UI element is an editable text control.
+    /// Requires Accessibility permission; returns false (don't skip) without it.
+    private func isEditingTextField() -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+        let system = AXUIElementCreateSystemWide()
+        var focused: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+              let focused else { return false }
+        let element = focused as! AXUIElement
+        var roleValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
+              let role = roleValue as? String else { return false }
+        return role == (kAXTextFieldRole as String)
+            || role == (kAXTextAreaRole as String)
+            || role == (kAXComboBoxRole as String)
     }
 
     // MARK: - Option-hold activation
@@ -70,8 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         defer { wasOptionDown = down }
 
         if down, !wasOptionDown {
-            // Press edge: enter spring Draw mode if nothing else is on screen.
+            // Press edge: enter spring Draw mode if nothing else is on screen and the
+            // user isn't typing in a text field (so ⌥-shortcuts like ⌥←/→ still work).
             guard noModeActive else { return }
+            guard !isEditingTextField() else { return }
             presentDrawMode(backgroundImage: nil, springLoaded: true)
         } else if !down, wasOptionDown {
             // Release edge: exit only an unpinned (still spring-loaded) session.
