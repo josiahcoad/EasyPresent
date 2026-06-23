@@ -12,7 +12,7 @@ it all vanishes.
 
 Pick **one** of these. (More detail in **[INSTALL.md](INSTALL.md)**.)
 
-**Option A — Homebrew**
+**Option A — Homebrew (recommended)**
 ```bash
 brew tap josiahcoad/tap
 brew install --cask --no-quarantine easypresent
