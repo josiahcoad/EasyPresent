@@ -14,9 +14,8 @@ Pick **one** of these.
 
 **Option A — Homebrew (recommended)**
 ```bash
-brew tap josiahcoad/tap && brew install --cask easypresent
+brew tap josiahcoad/tap && brew trust josiahcoad/tap && brew install --cask easypresent
 ```
-(If Homebrew says the tap is untrusted, run `brew trust josiahcoad/tap` first.)
 
 The cask clears the download quarantine automatically. The app isn't notarized, so if macOS
 still shows *"Apple could not verify…"*, approve it once via **System Settings → Privacy &
