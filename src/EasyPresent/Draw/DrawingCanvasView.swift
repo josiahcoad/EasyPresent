@@ -1,6 +1,6 @@
 import AppKit
 import CoreGraphics
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 /// The main NSView subclass that implements the 3-layer compositing architecture
 /// for Draw mode rendering.

@@ -1,7 +1,7 @@
 import AppKit
 import CoreGraphics
 import CoreMedia
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 /// Controls Live Zoom mode — real-time screen capture via SCStream with pan/zoom.
 @MainActor

@@ -1,6 +1,6 @@
 import AppKit
 import CoreGraphics
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 /// Controls Still Zoom mode (single screenshot + contentsRect based pan/zoom).
 @MainActor

@@ -1,6 +1,6 @@
 import AppKit
 import AudioToolbox
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 /// Manages the lifecycle of the Break Timer overlay window.
 @MainActor

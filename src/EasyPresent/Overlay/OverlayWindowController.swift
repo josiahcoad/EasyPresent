@@ -1,7 +1,7 @@
 import AppKit
 import CoreGraphics
 import CoreVideo
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 /// Manages the lifecycle of the overlay window used for Draw mode.
 @MainActor
