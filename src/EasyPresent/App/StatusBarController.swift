@@ -100,16 +100,30 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func aboutAction() {
-        let credits = NSAttributedString(
-            string: "https://github.com/07JP27/ZoomacIt",
+        let credits = NSMutableAttributedString()
+        let repoURL = URL(string: "https://github.com/josiahcoad/EasyPresent")!
+        credits.append(NSAttributedString(
+            string: "https://github.com/josiahcoad/EasyPresent",
             attributes: [
-                .link: URL(string: "https://github.com/07JP27/ZoomacIt")!,
+                .link: repoURL,
                 .font: NSFont.systemFont(ofSize: 11)
             ]
-        )
+        ))
+        credits.append(NSAttributedString(
+            string: "\n\nFork of ZoomacIt by 07JP27 (GPL-3.0):\n",
+            attributes: [.font: NSFont.systemFont(ofSize: 11)]
+        ))
+        let originalURL = URL(string: "https://github.com/07JP27/ZoomacIt")!
+        credits.append(NSAttributedString(
+            string: "https://github.com/07JP27/ZoomacIt",
+            attributes: [
+                .link: originalURL,
+                .font: NSFont.systemFont(ofSize: 11)
+            ]
+        ))
         NSApplication.shared.orderFrontStandardAboutPanel(options: [
             .credits: credits,
-            .init(rawValue: "Copyright"): "© 2026 07JP27"
+            .init(rawValue: "Copyright"): "© 2026 Josiah Coad"
         ])
         NSApplication.shared.activate(ignoringOtherApps: true)
     }

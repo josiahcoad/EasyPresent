@@ -118,6 +118,14 @@ final class Settings: @unchecked Sendable {
         static let spotlightDarkness = "drawSpotlightDarkness"
         static let laserEnabled = "drawLaserEnabled"
         static let color = "drawColor"
+        static let customColorHex = "drawCustomColorHex"
+        static let haloCenterStyle = "drawHaloCenterStyle"
+        static let haloSize = "drawHaloSize"
+        static let haloOuterRingEnabled = "drawHaloOuterRingEnabled"
+        static let haloContrastEnabled = "drawHaloContrastEnabled"
+        static let haloGlowEnabled = "drawHaloGlowEnabled"
+        static let haloInfillStyle = "drawHaloInfillStyle"
+        static let clickPulseEnabled = "drawClickPulseEnabled"
         static let holdModifier = "drawHoldModifier"
         static let toggleHotkeyKeyCode = "toggleHotkeyKeyCode"
         static let toggleHotkeyModifiers = "toggleHotkeyModifiers"
@@ -171,7 +179,14 @@ final class Settings: @unchecked Sendable {
             Keys.highlighterWidthMultiplier: 4.0,
             Keys.spotlightDarkness: 0.6,
             Keys.laserEnabled: false,
-            Keys.color: PenColor.red.rawValue,
+            Keys.color: PenColor.orange.rawValue,
+            Keys.haloCenterStyle: HaloCenterStyle.dot.rawValue,
+            Keys.haloSize: 32.0,
+            Keys.haloOuterRingEnabled: true,
+            Keys.haloContrastEnabled: false,
+            Keys.haloGlowEnabled: false,
+            Keys.haloInfillStyle: HaloInfillStyle.filled.rawValue,
+            Keys.clickPulseEnabled: true,
             Keys.holdModifier: ActivationModifier.option.rawValue,
             Keys.toggleHotkeyKeyCode: Int(kVK_Space),
             Keys.toggleHotkeyModifiers: Int(optionKey),
@@ -270,6 +285,49 @@ final class Settings: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.laserEnabled) }
     }
 
+    /// The mark drawn at the exact cursor point: plus, dot, or none.
+    var haloCenterStyle: HaloCenterStyle {
+        get { HaloCenterStyle(rawValue: defaults.string(forKey: Keys.haloCenterStyle) ?? "") ?? .plus }
+        set { defaults.set(newValue.rawValue, forKey: Keys.haloCenterStyle) }
+    }
+
+    /// Halo ring radius (points). Bound to a discrete slider in Preferences.
+    var haloSize: CGFloat {
+        get { CGFloat(defaults.double(forKey: Keys.haloSize)) }
+        set { defaults.set(Double(newValue), forKey: Keys.haloSize) }
+    }
+
+    /// When false, the soft glow + colored ring around the cursor are hidden,
+    /// leaving only the center indicator (plus/dot/none).
+    var haloOuterRingEnabled: Bool {
+        get { defaults.bool(forKey: Keys.haloOuterRingEnabled) }
+        set { defaults.set(newValue, forKey: Keys.haloOuterRingEnabled) }
+    }
+
+    /// When false, dark contrast outlines around the ring and center indicator are skipped.
+    var haloContrastEnabled: Bool {
+        get { defaults.bool(forKey: Keys.haloContrastEnabled) }
+        set { defaults.set(newValue, forKey: Keys.haloContrastEnabled) }
+    }
+
+    /// When true, draws a soft outer glow around the colored ring.
+    var haloGlowEnabled: Bool {
+        get { defaults.bool(forKey: Keys.haloGlowEnabled) }
+        set { defaults.set(newValue, forKey: Keys.haloGlowEnabled) }
+    }
+
+    /// How the area inside the ring is treated: filled, border band, or empty.
+    var haloInfillStyle: HaloInfillStyle {
+        get { HaloInfillStyle(rawValue: defaults.string(forKey: Keys.haloInfillStyle) ?? "") ?? .filled }
+        set { defaults.set(newValue.rawValue, forKey: Keys.haloInfillStyle) }
+    }
+
+    /// When true, mouse-down spawns an expanding ring pulse at the cursor.
+    var clickPulseEnabled: Bool {
+        get { defaults.bool(forKey: Keys.clickPulseEnabled) }
+        set { defaults.set(newValue, forKey: Keys.clickPulseEnabled) }
+    }
+
     /// When on, holding the modifier won't enter draw mode while a text field is focused
     /// (so ⌥←/→ word-jump etc. keep working). Requires Accessibility; default off.
     var disableInTextFields: Bool {
@@ -277,10 +335,29 @@ final class Settings: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.disableInTextFields) }
     }
 
-    /// The single user-chosen color, shared by the halo/crosshair, laser, and shapes.
+    /// The user-chosen preset. Persisted separately from `customColorHex` so the
+    /// cycle keys (⌥↑/↓) still have something coherent to advance through.
     var color: PenColor {
         get { PenColor(rawValue: defaults.string(forKey: Keys.color) ?? "") ?? .red }
         set { defaults.set(newValue.rawValue, forKey: Keys.color) }
+    }
+
+    /// Optional custom color (hex like "#FF8800"). When non-nil, overrides `color`
+    /// for all drawing — halo, laser, and shape strokes.
+    var customColorHex: String? {
+        get {
+            let raw = defaults.string(forKey: Keys.customColorHex)
+            return (raw?.isEmpty == false) ? raw : nil
+        }
+        set { defaults.set(newValue ?? "", forKey: Keys.customColorHex) }
+    }
+
+    /// The effective draw color: custom hex if set, otherwise the preset.
+    var resolvedNSColor: NSColor {
+        if let hex = customColorHex, let c = NSColor(hexString: hex) {
+            return c
+        }
+        return color.nsColor
     }
 
     /// Configurable pin/unpin toggle hotkey (default ⌥Space).
@@ -408,6 +485,9 @@ final class Settings: @unchecked Sendable {
             Keys.defaultPenColor, Keys.defaultPenWidth,
             Keys.highlighterOpacity, Keys.highlighterWidthMultiplier,
             Keys.spotlightDarkness,
+            Keys.color, Keys.laserEnabled,
+            Keys.haloCenterStyle, Keys.haloSize, Keys.haloOuterRingEnabled, Keys.haloContrastEnabled,
+            Keys.haloGlowEnabled, Keys.haloInfillStyle, Keys.clickPulseEnabled,
             Keys.defaultFontSize, Keys.fontWeight,
             Keys.defaultZoomLevel, Keys.zoomAnimationEnabled,
             Keys.breakTimerDefaultDuration, Keys.breakTimerColor,
@@ -495,4 +575,28 @@ final class Settings: @unchecked Sendable {
 extension Notification.Name {
     static let settingsDidReset = Notification.Name("settingsDidReset")
     static let hotkeysDidChange = Notification.Name("hotkeysDidChange")
+}
+
+// MARK: - NSColor hex helpers
+
+extension NSColor {
+    /// Initialize from a "#RRGGBB" or "RRGGBB" string. Returns nil on bad input.
+    convenience init?(hexString: String) {
+        var s = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
+        let r = CGFloat((v >> 16) & 0xFF) / 255
+        let g = CGFloat((v >> 8) & 0xFF) / 255
+        let b = CGFloat(v & 0xFF) / 255
+        self.init(srgbRed: r, green: g, blue: b, alpha: 1)
+    }
+
+    /// Lower-case "#rrggbb". Always converts through sRGB so the round-trip is stable.
+    var hexString: String {
+        let c = self.usingColorSpace(.sRGB) ?? self
+        let r = Int((c.redComponent * 255).rounded())
+        let g = Int((c.greenComponent * 255).rounded())
+        let b = Int((c.blueComponent * 255).rounded())
+        return String(format: "#%02x%02x%02x", r, g, b)
+    }
 }

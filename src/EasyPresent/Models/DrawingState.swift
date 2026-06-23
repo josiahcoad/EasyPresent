@@ -1,5 +1,36 @@
 import AppKit
 
+/// What marks the exact cursor point at the center of the halo.
+enum HaloCenterStyle: String, Sendable, CaseIterable {
+    case plus, dot, none
+
+    var displayName: String {
+        switch self {
+        case .plus: return "Plus"
+        case .dot:  return "Dot"
+        case .none: return "None"
+        }
+    }
+}
+
+/// How the area inside the halo's outer ring is filled.
+enum HaloInfillStyle: String, Sendable, CaseIterable {
+    /// Solid soft alpha fill across the whole disk (the original look).
+    case filled
+    /// A thick light-alpha band hugging the inside edge of the ring.
+    case border
+    /// Empty interior — only the outer ring shows.
+    case none
+
+    var displayName: String {
+        switch self {
+        case .filled: return "Filled"
+        case .border: return "Border"
+        case .none:   return "None"
+        }
+    }
+}
+
 /// Available pen/text colors.
 enum PenColor: String, Sendable, CaseIterable {
     case red, green, cyan, orange, yellow, magenta
@@ -104,7 +135,7 @@ final class DrawingState {
 
     /// The NSColor for drawing — the single user-chosen color (shared by shapes + cursor).
     var currentNSColor: NSColor {
-        Settings.shared.color.nsColor
+        Settings.shared.resolvedNSColor
     }
 
     /// Determine the current shape type based on modifier flags and Tab key state.

@@ -186,6 +186,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Cycle the active draw color through PenColor.allCases (⌥↑ next, ⌥↓ previous)
     /// and repaint the live overlay so the change is visible immediately.
     private func cycleColor(forward: Bool) {
+        // Cycling through presets clears any custom color so the cycle is meaningful.
+        Settings.shared.customColorHex = nil
         let current = Settings.shared.color
         Settings.shared.color = forward ? current.next : current.previous
         overlayController?.refreshColor()
@@ -425,7 +427,7 @@ private final class HintContentView: NSView {
 final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
-    private enum Step { case holdToEnter, drawBox, drawArrow, cycleColor, releaseToClear, pin, unpin, tryHelp, openSettings, done }
+    private enum Step { case holdToEnter, drawFreehand, drawBox, drawArrow, cycleColor, releaseToClear, pin, unpin, tryHelp, openSettings, done }
 
     private var step: Step = .done
     private var active = false
@@ -460,13 +462,14 @@ final class OnboardingCoordinator {
     func drawModeEntered() {
         inDrawMode = true
         isPinned = false
-        if active, step == .holdToEnter { step = .drawBox }
+        if active, step == .holdToEnter { step = .drawFreehand }
         refresh()
     }
 
     func recordShape(_ type: ShapeType) {
         if active {
-            if step == .drawBox, type == .rectangle { step = .drawArrow }
+            if step == .drawFreehand, type == .freehand { step = .drawBox }
+            else if step == .drawBox, type == .rectangle { step = .drawArrow }
             else if step == .drawArrow, type == .arrow { step = .cycleColor }
         }
         refresh()
@@ -546,7 +549,8 @@ final class OnboardingCoordinator {
             return """
             EasyPresent — controls
             \(mod) + move:  halo
-            \(mod) + drag:  box
+            \(mod) + drag:  draw
+            \(mod)⌘ + drag:  box
             \(mod)⇧ + drag:  arrow
             \(mod)↑ / \(mod)↓:  color
             \(toggle):  toggle
@@ -555,7 +559,8 @@ final class OnboardingCoordinator {
         if active {
             switch step {
             case .holdToEnter:    return "👋 Hold \(mod) to start drawing"
-            case .drawBox:        return "Now drag to draw a box"
+            case .drawFreehand:   return "Drag to draw freehand"
+            case .drawBox:        return "Hold \(mod) + ⌘ Cmd and drag to draw a box"
             case .drawArrow:      return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .cycleColor:     return "Press \(mod)↑ / \(mod)↓ to change color"
             case .releaseToClear: return "Let go of \(mod) — your drawing clears"
@@ -568,7 +573,7 @@ final class OnboardingCoordinator {
         }
         // First-run ambient hints (after onboarding, only while drawing).
         if inDrawMode, Settings.shared.drawSessions <= 10 {
-            var lines = "Drag to draw a box\n⇧ drag for an arrow"
+            var lines = "Drag to draw\n⌘ drag for a box · ⇧ drag for an arrow"
             if !isPinned { lines += "\nTry \(toggle) to toggle" }
             return lines
         }

@@ -6,8 +6,6 @@ import ServiceManagement
 struct GeneralTab: View {
 
     @AppStorage(Settings.Keys.holdModifier) private var holdModifierRaw: String = ActivationModifier.option.rawValue
-    @AppStorage(Settings.Keys.laserEnabled) private var laserEnabled: Bool = false
-    @AppStorage(Settings.Keys.color) private var colorRaw: String = PenColor.red.rawValue
     @AppStorage(Settings.Keys.toggleHotkeyKeyCode) private var toggleKeyCode: Int = Int(kVK_Space)
     @AppStorage(Settings.Keys.toggleHotkeyModifiers) private var toggleModifiers: Int = Int(optionKey)
     @AppStorage(Settings.Keys.disableInTextFields) private var disableInTextFields: Bool = false
@@ -22,10 +20,6 @@ struct GeneralTab: View {
 
     private var holdModifierBinding: Binding<ActivationModifier> {
         Binding(get: { holdModifier }, set: { holdModifierRaw = $0.rawValue })
-    }
-
-    private var color: Binding<PenColor> {
-        Binding(get: { PenColor(rawValue: colorRaw) ?? .red }, set: { colorRaw = $0.rawValue })
     }
 
     /// Turning this on prompts for Accessibility (needed to detect a focused text field).
@@ -61,23 +55,9 @@ struct GeneralTab: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Appearance") {
-                Picker("Color", selection: color) {
-                    ForEach(PenColor.allCases, id: \.self) { c in
-                        HStack {
-                            Circle()
-                                .fill(Color(nsColor: c.nsColor))
-                                .frame(width: 12, height: 12)
-                            Text(c.rawValue.capitalized)
-                        }
-                        .tag(c)
-                    }
-                }
-                Toggle("Trailing laser", isOn: $laserEnabled)
-            }
-
             Section("Gestures") {
-                gestureRow("Box", "\(sym) + drag")
+                gestureRow("Draw", "\(sym) + drag")
+                gestureRow("Box", "\(sym)⌘ + drag")
                 gestureRow("Arrow", "\(sym)⇧ + drag")
                 gestureRow("Toggle", toggleStr)
                 gestureRow("Cycle color", "\(sym)↑ / \(sym)↓")
