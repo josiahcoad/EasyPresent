@@ -38,7 +38,6 @@
 		991CF534D76F5FFC8EA5D7B6 /* CGContextExtensionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB77440A65A296074BB6826 /* CGContextExtensionsTests.swift */; };
 		A71B005D9EBD666368EEA82D /* NSScreen+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CBCEB0146CDE7FE48F6A8B /* NSScreen+Extensions.swift */; };
 		AD52A26EBF43296A9E5ABB19 /* GeneralTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6598DA4C8DDE2571BC6A62F /* GeneralTab.swift */; };
-		B72FDCA87EFD7C0C24E964B1 /* DrawTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF0A0D603A12741D345F268 /* DrawTab.swift */; };
 		B772CDDCD04B0984E7D769CA /* LiveZoomWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81A9A64F31295C383165D56 /* LiveZoomWindowController.swift */; };
 		BB3F28A663EEDDE9D2717049 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D6CACF5B4DEFAF55744754F /* SettingsWindowController.swift */; };
 		C327C266A5B7680F6BDAE149 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 48AC610828971173601539D3 /* Assets.xcassets */; };
@@ -86,7 +85,6 @@
 		7A2F85843B62FC35D3C508CD /* HighlighterRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlighterRenderer.swift; sourceTree = "<group>"; };
 		8719B4EF2A33EC663FE8DA60 /* ZoomMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomMathTests.swift; sourceTree = "<group>"; };
 		8AEC93E0B3B2F6584F8B385B /* SettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTests.swift; sourceTree = "<group>"; };
-		8CF0A0D603A12741D345F268 /* DrawTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawTab.swift; sourceTree = "<group>"; };
 		8D8B1A36E4B5DC6EBE43B58B /* LiveZoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveZoomView.swift; sourceTree = "<group>"; };
 		9C6391031A99C8AD1380ED46 /* StillZoomWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StillZoomWindowController.swift; sourceTree = "<group>"; };
 		A5971CE806BF19299B3FC6CE /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -201,7 +199,6 @@
 			isa = PBXGroup;
 			children = (
 				B5E2BDD2DD350B25704C1368 /* BreakTimerTab.swift */,
-				8CF0A0D603A12741D345F268 /* DrawTab.swift */,
 				C6598DA4C8DDE2571BC6A62F /* GeneralTab.swift */,
 				AB56470EEC02762A6E17860D /* KeyRecorderView.swift */,
 				A5971CE806BF19299B3FC6CE /* SettingsView.swift */,
@@ -364,7 +361,6 @@
 				E5F93248C0B4904E329840B9 /* BreakTimerWindow.swift in Sources */,
 				04E457C052DC56B2C189B315 /* BreakTimerWindowController.swift in Sources */,
 				032FE9A121C939C0E05A8E77 /* CGContext+Extensions.swift in Sources */,
-				B72FDCA87EFD7C0C24E964B1 /* DrawTab.swift in Sources */,
 				511620D7FBB0BC384E9A1FE1 /* DrawingCanvasView.swift in Sources */,
 				40B863DF0FC9B0EC1913E2BF /* DrawingState.swift in Sources */,
 				69E2E6C9CC40DD895D60B9ED /* FreehandRenderer.swift in Sources */,

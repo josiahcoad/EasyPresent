@@ -88,10 +88,9 @@ final class DrawingState {
 
     // MARK: - Derived
 
-    /// The NSColor to use for drawing, applying highlighter alpha if needed.
+    /// The NSColor for drawing — the single user-chosen color (shared by shapes + cursor).
     var currentNSColor: NSColor {
-        let base = activeColor.nsColor
-        return isHighlighterMode ? base.withAlphaComponent(Settings.shared.highlighterOpacity) : base
+        Settings.shared.color.nsColor
     }
 
     /// Determine the current shape type based on modifier flags and Tab key state.

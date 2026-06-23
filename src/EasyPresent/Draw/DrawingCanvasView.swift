@@ -368,7 +368,7 @@ final class DrawingCanvasView: NSView {
 
     /// A soft glowing ring centered on the cursor so the audience can find the pointer.
     private func drawHalo(in context: CGContext) {
-        let haloColor = Settings.shared.haloColor.nsColor
+        let haloColor = Settings.shared.color.nsColor
         let radius: CGFloat = 22
         let rect = CGRect(x: cursorPoint.x - radius, y: cursorPoint.y - radius,
                           width: radius * 2, height: radius * 2)
@@ -509,10 +509,10 @@ final class DrawingCanvasView: NSView {
         guard globalT > 0 else { return }
         let r: CGFloat = 5.0
         context.saveGState()
-        context.setFillColor(NSColor.systemRed.withAlphaComponent(0.30 * globalT).cgColor)
+        context.setFillColor(Settings.shared.color.nsColor.withAlphaComponent(0.30 * globalT).cgColor)
         context.fillEllipse(in: CGRect(x: head.x - r - 4, y: head.y - r - 4,
                                        width: 2 * (r + 4), height: 2 * (r + 4)))
-        context.setFillColor(NSColor.systemRed.withAlphaComponent(0.95 * globalT).cgColor)
+        context.setFillColor(Settings.shared.color.nsColor.withAlphaComponent(0.95 * globalT).cgColor)
         context.fillEllipse(in: CGRect(x: head.x - r, y: head.y - r, width: 2 * r, height: 2 * r))
         context.setFillColor(NSColor.white.withAlphaComponent(0.85 * globalT).cgColor)
         context.fillEllipse(in: CGRect(x: head.x - 2.0, y: head.y - 2.0, width: 4.0, height: 4.0))
@@ -533,8 +533,8 @@ final class DrawingCanvasView: NSView {
         context.replacePathWithStrokedPath()
         context.clip()
         let colors = [
-            NSColor.systemRed.withAlphaComponent(0).cgColor,
-            NSColor.systemRed.withAlphaComponent(maxAlpha).cgColor
+            Settings.shared.color.nsColor.withAlphaComponent(0).cgColor,
+            Settings.shared.color.nsColor.withAlphaComponent(maxAlpha).cgColor
         ] as CFArray
         if let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: [0, 1]) {
             context.drawLinearGradient(gradient, start: tail, end: head,

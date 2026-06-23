@@ -6,7 +6,7 @@ struct GeneralTab: View {
 
     @AppStorage(Settings.Keys.holdModifier) private var holdModifierRaw: String = ActivationModifier.option.rawValue
     @AppStorage(Settings.Keys.laserEnabled) private var laserEnabled: Bool = false
-    @AppStorage(Settings.Keys.haloColor) private var haloColorRaw: String = PenColor.yellow.rawValue
+    @AppStorage(Settings.Keys.color) private var colorRaw: String = PenColor.red.rawValue
 
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
 
@@ -20,10 +20,10 @@ struct GeneralTab: View {
         )
     }
 
-    private var haloColor: Binding<PenColor> {
+    private var color: Binding<PenColor> {
         Binding(
-            get: { PenColor(rawValue: haloColorRaw) ?? .yellow },
-            set: { haloColorRaw = $0.rawValue }
+            get: { PenColor(rawValue: colorRaw) ?? .red },
+            set: { colorRaw = $0.rawValue }
         )
     }
 
@@ -37,16 +37,16 @@ struct GeneralTab: View {
                 }
             }
 
-            Section("Cursor") {
-                Picker("Halo Color", selection: haloColor) {
-                    ForEach(PenColor.allCases, id: \.self) { color in
+            Section("Appearance") {
+                Picker("Color", selection: color) {
+                    ForEach(PenColor.allCases, id: \.self) { c in
                         HStack {
                             Circle()
-                                .fill(Color(nsColor: color.nsColor))
+                                .fill(Color(nsColor: c.nsColor))
                                 .frame(width: 12, height: 12)
-                            Text(color.rawValue.capitalized)
+                            Text(c.rawValue.capitalized)
                         }
-                        .tag(color)
+                        .tag(c)
                     }
                 }
                 Toggle("Trailing laser", isOn: $laserEnabled)

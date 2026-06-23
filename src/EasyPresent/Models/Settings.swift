@@ -117,7 +117,7 @@ final class Settings: @unchecked Sendable {
         static let highlighterWidthMultiplier = "drawHighlighterWidthMultiplier"
         static let spotlightDarkness = "drawSpotlightDarkness"
         static let laserEnabled = "drawLaserEnabled"
-        static let haloColor = "drawHaloColor"
+        static let color = "drawColor"
         static let holdModifier = "drawHoldModifier"
 
         // Stats (local usage counters)
@@ -168,7 +168,7 @@ final class Settings: @unchecked Sendable {
             Keys.highlighterWidthMultiplier: 4.0,
             Keys.spotlightDarkness: 0.6,
             Keys.laserEnabled: false,
-            Keys.haloColor: PenColor.yellow.rawValue,
+            Keys.color: PenColor.red.rawValue,
             Keys.holdModifier: ActivationModifier.option.rawValue,
 
             // Text
@@ -264,9 +264,10 @@ final class Settings: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.laserEnabled) }
     }
 
-    var haloColor: PenColor {
-        get { PenColor(rawValue: defaults.string(forKey: Keys.haloColor) ?? "") ?? .yellow }
-        set { defaults.set(newValue.rawValue, forKey: Keys.haloColor) }
+    /// The single user-chosen color, shared by the halo/crosshair, laser, and shapes.
+    var color: PenColor {
+        get { PenColor(rawValue: defaults.string(forKey: Keys.color) ?? "") ?? .red }
+        set { defaults.set(newValue.rawValue, forKey: Keys.color) }
     }
 
     var holdModifier: ActivationModifier {
