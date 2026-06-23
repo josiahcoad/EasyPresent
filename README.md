@@ -14,12 +14,13 @@ Pick **one** of these.
 
 **Option A — Homebrew (recommended)**
 ```bash
-brew tap josiahcoad/tap && brew trust josiahcoad/tap && brew install --cask easypresent
+brew tap josiahcoad/tap && brew trust josiahcoad/tap && brew install --cask easypresent && open -a EasyPresent
 ```
 
-The cask clears the download quarantine automatically. The app isn't notarized, so if macOS
-still shows *"Apple could not verify…"*, approve it once via **System Settings → Privacy &
-Security → Open Anyway**.
+The final `open -a EasyPresent` launches the app and starts the guided onboarding. The cask
+clears the download quarantine automatically. The app isn't notarized, so if macOS still shows
+*"Apple could not verify…"*, approve it once via **System Settings → Privacy & Security → Open
+Anyway**.
 
 **Option B — Direct download**
 Grab the latest `EasyPresent-vX.Y.Z.dmg` from
