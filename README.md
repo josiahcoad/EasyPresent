@@ -10,18 +10,19 @@ it all vanishes.
 
 ## Install
 
-See **[INSTALL.md](INSTALL.md)** for details. In short:
+Pick **one** of these. (More detail in **[INSTALL.md](INSTALL.md)**.)
 
-**Download:** grab the latest `EasyPresent-vX.Y.Z.dmg` from
-[Releases](https://github.com/josiahcoad/EasyPresent/releases), drag it to Applications, then
-**right-click → Open** once (the build is ad-hoc signed, so Gatekeeper warns the first time).
-
-**Homebrew:**
+**Option A — Homebrew**
 ```bash
 brew tap josiahcoad/tap
 brew install --cask --no-quarantine easypresent
 ```
 (If Homebrew says the tap is untrusted, run `brew trust josiahcoad/tap` first.)
+
+**Option B — Direct download**
+Grab the latest `EasyPresent-vX.Y.Z.dmg` from
+[Releases](https://github.com/josiahcoad/EasyPresent/releases), drag it to Applications, then
+**right-click → Open** once (the build is ad-hoc signed, so Gatekeeper warns the first time).
 
 ## Usage
 
