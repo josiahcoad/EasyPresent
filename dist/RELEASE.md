@@ -49,11 +49,12 @@ Each new version: rebuild the DMG, upload to the Release, then bump `version` +
 Verify locally before pushing:
 
 ```bash
-brew install --cask --no-quarantine ./dist/homebrew-tap/Casks/easypresent.rb
+brew install --cask ./dist/homebrew-tap/Casks/easypresent.rb
 ```
 
 ## Notes
 - The `sha256` in the cask **must** match the uploaded DMG exactly — update it every release.
 - Replace `josiahcoad` with your actual GitHub username if different.
-- `--no-quarantine` is needed because the build is ad-hoc signed (not notarized). To drop
-  that requirement, notarize with an Apple Developer ID and the warning disappears entirely.
+- The build is ad-hoc signed (not notarized); the cask's `postflight` strips the quarantine
+  flag so it opens without a Gatekeeper prompt. Notarizing with an Apple Developer ID would
+  remove the need for that workaround entirely.

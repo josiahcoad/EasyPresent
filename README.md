@@ -15,9 +15,10 @@ Pick **one** of these.
 **Option A — Homebrew (recommended)**
 ```bash
 brew tap josiahcoad/tap
-brew install --cask --no-quarantine easypresent
+brew install --cask easypresent
 ```
-(If Homebrew says the tap is untrusted, run `brew trust josiahcoad/tap` first.)
+(If Homebrew says the tap is untrusted, run `brew trust josiahcoad/tap` first.) The cask
+clears the Gatekeeper quarantine automatically, so it opens without an "unverified" prompt.
 
 **Option B — Direct download**
 Grab the latest `EasyPresent-vX.Y.Z.dmg` from

@@ -9,5 +9,13 @@ cask "easypresent" do
 
   app "EasyPresent.app"
 
+  # Ad-hoc signed (not notarized): strip the quarantine flag so the app opens
+  # without the Gatekeeper "unverified developer" prompt.
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/EasyPresent.app"],
+                   must_succeed: false
+  end
+
   zap trash: "~/Library/Preferences/com.josiahcoad.EasyPresent.plist"
 end
