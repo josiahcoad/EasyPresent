@@ -62,18 +62,27 @@ jobs:
 
       - name: Bump Homebrew cask
         env:
-          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
         run: |
-          if [ -z "$TAP_TOKEN" ]; then
-            echo "No TAP_TOKEN secret set — skipping cask bump. (Add one to auto-update the tap.)"
+          if [ -z "$TAP_DEPLOY_KEY" ]; then
+            echo "No TAP_DEPLOY_KEY secret set — skipping cask bump. (Add a write-scoped deploy key to auto-update the tap.)"
             exit 0
           fi
           V="${{ steps.ver.outputs.version }}"
           SHA="${{ steps.dmg.outputs.sha }}"
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/josiahcoad/homebrew-tap.git" tap
+
+          # Use a deploy key scoped to the tap repo only (no broad token).
+          mkdir -p ~/.ssh
+          printf '%s\n' "$TAP_DEPLOY_KEY" > ~/.ssh/tap_deploy
+          chmod 600 ~/.ssh/tap_deploy
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/tap_deploy -o IdentitiesOnly=yes"
+
+          git clone "git@github.com:josiahcoad/homebrew-tap.git" tap
           cd tap
           sed -i '' -E "s/^  version \".*\"/  version \"$V\"/" Casks/easypresent.rb
           sed -i '' -E "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" Casks/easypresent.rb
           git -c user.name="github-actions[bot]" -c user.email="github-actions[bot]@users.noreply.github.com" \
             commit -aqm "easypresent $V"
           git push -q
+          rm -f ~/.ssh/tap_deploy
