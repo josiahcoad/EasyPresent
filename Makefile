@@ -11,7 +11,17 @@ VERSION     ?= 0.0.0
 -include .env
 export
 
-.PHONY: build test run release clean generate notarize dmg release-dmg
+.PHONY: build test run dev release clean generate notarize dmg release-dmg
+
+# Quick dev loop: ad-hoc build → install to /Applications → launch. No Apple cert needed.
+dev:
+	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) \
+		CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" build
+	@osascript -e 'tell application "$(APP_NAME)" to quit' 2>/dev/null || true
+	@pkill -x $(APP_NAME) 2>/dev/null || true
+	rm -rf /Applications/$(APP_NAME).app
+	cp -R $(BUILD_DIR)/Build/Products/Debug/$(APP_NAME).app /Applications/
+	open /Applications/$(APP_NAME).app
 
 # One command to ship an ad-hoc release: build DMG + GitHub release + bump Homebrew cask.
 release-dmg:
