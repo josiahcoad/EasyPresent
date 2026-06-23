@@ -2,16 +2,16 @@ import AppKit
 
 /// Available pen/text colors.
 enum PenColor: String, Sendable, CaseIterable {
-    case red, green, blue, orange, yellow, pink
+    case red, green, cyan, orange, yellow, magenta
 
     var nsColor: NSColor {
         switch self {
-        case .red:    return .systemRed
-        case .green:  return .systemGreen
-        case .blue:   return .systemBlue
-        case .orange: return .systemOrange
-        case .yellow: return .systemYellow
-        case .pink:   return .systemPink
+        case .red:     return .systemRed
+        case .green:   return .systemGreen
+        case .cyan:    return .systemCyan
+        case .orange:  return .systemOrange
+        case .yellow:  return .systemYellow
+        case .magenta: return .magenta
         }
     }
 
@@ -20,10 +20,10 @@ enum PenColor: String, Sendable, CaseIterable {
         switch character.uppercased() {
         case "R": return .red
         case "G": return .green
-        case "B": return .blue
+        case "C": return .cyan
         case "O": return .orange
         case "Y": return .yellow
-        case "P": return .pink
+        case "M": return .magenta
         default:  return nil
         }
     }
