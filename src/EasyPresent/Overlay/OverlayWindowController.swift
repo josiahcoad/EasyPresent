@@ -83,7 +83,7 @@ final class OverlayWindowController {
         }
 
         window.contentView = canvas
-        window.setFrameOrigin(screen.frame.origin)
+        window.setFrame(screen.frame, display: false)
         if makeKey {
             window.makeKeyAndOrderFront(nil)
             window.makeFirstResponder(canvas)

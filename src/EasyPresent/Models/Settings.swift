@@ -121,6 +121,7 @@ final class Settings: @unchecked Sendable {
         static let holdModifier = "drawHoldModifier"
         static let toggleHotkeyKeyCode = "toggleHotkeyKeyCode"
         static let toggleHotkeyModifiers = "toggleHotkeyModifiers"
+        static let disableInTextFields = "drawDisableInTextFields"
 
         // Stats (local usage counters)
         static let statsArrows = "statsArrowsDrawn"
@@ -174,6 +175,7 @@ final class Settings: @unchecked Sendable {
             Keys.holdModifier: ActivationModifier.option.rawValue,
             Keys.toggleHotkeyKeyCode: Int(kVK_Space),
             Keys.toggleHotkeyModifiers: Int(optionKey),
+            Keys.disableInTextFields: false,
 
             // Text
             Keys.defaultFontSize: 24.0,
@@ -266,6 +268,13 @@ final class Settings: @unchecked Sendable {
     var laserEnabled: Bool {
         get { defaults.bool(forKey: Keys.laserEnabled) }
         set { defaults.set(newValue, forKey: Keys.laserEnabled) }
+    }
+
+    /// When on, holding the modifier won't enter draw mode while a text field is focused
+    /// (so ⌥←/→ word-jump etc. keep working). Requires Accessibility; default off.
+    var disableInTextFields: Bool {
+        get { defaults.bool(forKey: Keys.disableInTextFields) }
+        set { defaults.set(newValue, forKey: Keys.disableInTextFields) }
     }
 
     /// The single user-chosen color, shared by the halo/crosshair, laser, and shapes.

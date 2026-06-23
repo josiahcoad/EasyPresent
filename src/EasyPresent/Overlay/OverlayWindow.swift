@@ -50,4 +50,12 @@ final class OverlayWindow: NSPanel {
     override var canBecomeKey: Bool { keyable }
 
     override var canBecomeMain: Bool { false }
+
+    /// Keep the overlay exactly where we place it (the full `screen.frame`). AppKit
+    /// otherwise shifts/shrinks a borderless panel to keep it out from under the menu
+    /// bar, which makes the window smaller than the display — so the halo would lag or
+    /// clamp a few cm in from the top/edges while tracking fine near the center.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        return frameRect
+    }
 }

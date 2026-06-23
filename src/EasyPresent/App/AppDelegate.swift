@@ -56,12 +56,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         startOptionPoll()
 
-        // Prompt for Accessibility so we can skip activating Draw mode while typing in a
-        // text field. If denied, activation simply works everywhere (no text-field skip).
-        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(opts)
+        // Accessibility is only needed for the optional "don't activate in text fields"
+        // behavior, which is off by default. We prompt for it when the user turns that
+        // setting on (see AppDelegate.requestTextFieldAccessibility / GeneralTab), not at launch.
 
         OnboardingCoordinator.shared.startIfFirstRun()
+    }
+
+    /// Prompt for Accessibility, which powers the optional "don't activate in text fields"
+    /// behavior. Called when the user turns that setting on. Safe to call repeatedly.
+    func requestTextFieldAccessibility() {
+        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(opts)
     }
 
     /// True if the system-wide focused UI element is an editable text control.
@@ -102,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Press edge: enter spring Draw mode if nothing else is on screen and the
             // user isn't typing in a text field (so ⌥-shortcuts like ⌥←/→ still work).
             guard noModeActive else { return }
-            guard !isEditingTextField() else { return }
+            if Settings.shared.disableInTextFields, isEditingTextField() { return }
             presentDrawMode(backgroundImage: nil, springLoaded: true)
         } else if !down, wasOptionDown {
             // Release edge: exit only an unpinned (still spring-loaded) session.

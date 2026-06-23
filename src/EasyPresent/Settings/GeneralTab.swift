@@ -10,6 +10,7 @@ struct GeneralTab: View {
     @AppStorage(Settings.Keys.color) private var colorRaw: String = PenColor.red.rawValue
     @AppStorage(Settings.Keys.toggleHotkeyKeyCode) private var toggleKeyCode: Int = Int(kVK_Space)
     @AppStorage(Settings.Keys.toggleHotkeyModifiers) private var toggleModifiers: Int = Int(optionKey)
+    @AppStorage(Settings.Keys.disableInTextFields) private var disableInTextFields: Bool = false
 
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
 
@@ -27,6 +28,19 @@ struct GeneralTab: View {
         Binding(get: { PenColor(rawValue: colorRaw) ?? .red }, set: { colorRaw = $0.rawValue })
     }
 
+    /// Turning this on prompts for Accessibility (needed to detect a focused text field).
+    private var disableInTextFieldsBinding: Binding<Bool> {
+        Binding(
+            get: { disableInTextFields },
+            set: { newValue in
+                disableInTextFields = newValue
+                if newValue {
+                    (NSApp.delegate as? AppDelegate)?.requestTextFieldAccessibility()
+                }
+            }
+        )
+    }
+
     var body: some View {
         Form {
             Section("Activation") {
@@ -41,6 +55,10 @@ struct GeneralTab: View {
                     KeyRecorderView(keyCode: $toggleKeyCode, modifiers: $toggleModifiers)
                         .frame(width: 140, height: 28)
                 }
+                Toggle("Don't activate in text fields", isOn: disableInTextFieldsBinding)
+                Text("Keeps \(sym)←/→ word-jump working while typing. Needs Accessibility.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Appearance") {
