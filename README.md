@@ -2,8 +2,7 @@
 
 A tiny macOS menu-bar tool for presenting: hold a key to drop a **halo** on your cursor,
 draw quick **boxes** and **arrows**, and an optional fading **laser** trail — then let go and
-it all vanishes. No Dock icon, and **no permissions required** (no Screen Recording, no
-Accessibility).
+it all vanishes.
 
 > EasyPresent is a fork of **[07JP27/ZoomacIt](https://github.com/07JP27/ZoomacIt)**,
 > reworked from a ZoomIt-style annotation app into a focused presenter pointer.
