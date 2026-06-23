@@ -1,5 +1,5 @@
 import XCTest
-@testable import ZoomacIt
+@testable import EasyPresent
 
 final class BreakTimerStateTests: XCTestCase {
 
@@ -202,7 +202,7 @@ final class BreakTimerStateTests: XCTestCase {
 
         // Change settings
         Settings.shared.breakTimerDefaultDuration = 300
-        Settings.shared.breakTimerColor = .blue
+        Settings.shared.breakTimerColor = .cyan
         Settings.shared.breakTimerOpacity = 0.5
         Settings.shared.breakTimerBackground = .fadedDesktop
         Settings.shared.breakTimerShowElapsed = false
@@ -214,7 +214,7 @@ final class BreakTimerStateTests: XCTestCase {
         // After reload, all properties should match Settings
         state.reloadFromSettings()
         XCTAssertEqual(state.defaultDuration, 300)
-        XCTAssertEqual(state.timerColor, .blue)
+        XCTAssertEqual(state.timerColor, .cyan)
         XCTAssertEqual(state.opacity, 0.5)
         XCTAssertEqual(state.background, .fadedDesktop)
         XCTAssertFalse(state.showElapsed)

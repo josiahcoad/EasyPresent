@@ -1,5 +1,5 @@
 import XCTest
-@testable import ZoomacIt
+@testable import EasyPresent
 
 final class DrawingStateTests: XCTestCase {
 
@@ -30,10 +30,10 @@ final class DrawingStateTests: XCTestCase {
     func testColorMapping() {
         XCTAssertEqual(PenColor.from(character: "R"), .red)
         XCTAssertEqual(PenColor.from(character: "g"), .green)
-        XCTAssertEqual(PenColor.from(character: "B"), .blue)
+        XCTAssertEqual(PenColor.from(character: "C"), .cyan)
         XCTAssertEqual(PenColor.from(character: "O"), .orange)
         XCTAssertEqual(PenColor.from(character: "Y"), .yellow)
-        XCTAssertEqual(PenColor.from(character: "P"), .pink)
+        XCTAssertEqual(PenColor.from(character: "M"), .magenta)
         XCTAssertNil(PenColor.from(character: "Z"))
     }
 
@@ -79,23 +79,12 @@ final class DrawingStateTests: XCTestCase {
 
     // MARK: - Current NSColor
 
-    func testCurrentNSColorNormalMode() {
+    func testCurrentNSColorReflectsSettingsColor() {
         let state = DrawingState()
-        state.activeColor = .blue
-        state.isHighlighterMode = false
-        XCTAssertEqual(state.currentNSColor, NSColor.systemBlue)
-    }
-
-    func testCurrentNSColorHighlighterMode() {
-        let state = DrawingState()
-        state.activeColor = .red
-        state.isHighlighterMode = true
-        let color = state.currentNSColor
-        XCTAssertEqual(
-            color.alphaComponent,
-            Settings.shared.highlighterOpacity,
-            accuracy: 0.01
-        )
+        Settings.shared.color = .cyan
+        XCTAssertEqual(state.currentNSColor, NSColor.systemCyan)
+        Settings.shared.color = .magenta
+        XCTAssertEqual(state.currentNSColor, NSColor.magenta)
     }
 
     // MARK: - Background Mode

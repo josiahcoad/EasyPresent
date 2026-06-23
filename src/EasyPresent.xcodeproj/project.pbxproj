@@ -22,6 +22,7 @@
 		444DBAB534A3A42B9044E43F /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E052AAF2BA01CC5EEEC8ABED /* HotkeyManager.swift */; };
 		4520AD8C6D440B2144A2DC73 /* FontWeightOptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF6E35BBBE5339F2727DA56 /* FontWeightOptionTests.swift */; };
 		4520F181C63D3BA131DE8450 /* LiveZoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8B1A36E4B5DC6EBE43B58B /* LiveZoomView.swift */; };
+		45A2DAA50D27F45D3973217D /* EasyPresentBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60384BA03553B2422B887C18 /* EasyPresentBehaviorTests.swift */; };
 		4D0320C5F5872C48574C0538 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1800358B6572A7ACB5C60 /* AppDelegate.swift */; };
 		511620D7FBB0BC384E9A1FE1 /* DrawingCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1909C0B988F2C020D052B357 /* DrawingCanvasView.swift */; };
 		5465E74B16253D7C3CC8F715 /* ShapeRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64A498920F6E1A95389D62F9 /* ShapeRenderer.swift */; };
@@ -79,6 +80,7 @@
 		5E7323F9359C5A2EFB85490B /* HighlighterRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlighterRendererTests.swift; sourceTree = "<group>"; };
 		5F01248310F184F663480386 /* EasyPresentTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EasyPresentTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5FF6E35BBBE5339F2727DA56 /* FontWeightOptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontWeightOptionTests.swift; sourceTree = "<group>"; };
+		60384BA03553B2422B887C18 /* EasyPresentBehaviorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EasyPresentBehaviorTests.swift; sourceTree = "<group>"; };
 		64A498920F6E1A95389D62F9 /* ShapeRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShapeRenderer.swift; sourceTree = "<group>"; };
 		6E4C38FB0E11E906FA9F1FB9 /* StrokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrokeTests.swift; sourceTree = "<group>"; };
 		717F175FB49BFDBD9ED9BB37 /* OverlayWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayWindowController.swift; sourceTree = "<group>"; };
@@ -123,6 +125,7 @@
 				EE6FAF9631FC107665DD72E9 /* BreakTimerStateTests.swift */,
 				BBB77440A65A296074BB6826 /* CGContextExtensionsTests.swift */,
 				EB7DCAB1A3486955FC4B4BE1 /* DrawingStateTests.swift */,
+				60384BA03553B2422B887C18 /* EasyPresentBehaviorTests.swift */,
 				5FF6E35BBBE5339F2727DA56 /* FontWeightOptionTests.swift */,
 				B9370D768CC57C0E712EAA58 /* FreehandRendererTests.swift */,
 				5E7323F9359C5A2EFB85490B /* HighlighterRendererTests.swift */,
@@ -396,6 +399,7 @@
 				0220DF031F9266347D7754AC /* BreakTimerStateTests.swift in Sources */,
 				991CF534D76F5FFC8EA5D7B6 /* CGContextExtensionsTests.swift in Sources */,
 				C42024667686D665D4472A3A /* DrawingStateTests.swift in Sources */,
+				45A2DAA50D27F45D3973217D /* EasyPresentBehaviorTests.swift in Sources */,
 				4520AD8C6D440B2144A2DC73 /* FontWeightOptionTests.swift in Sources */,
 				2F16303076F0299B76968ECC /* FreehandRendererTests.swift in Sources */,
 				CBFD139347444B424946FCD0 /* HighlighterRendererTests.swift in Sources */,

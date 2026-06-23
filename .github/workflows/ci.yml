@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Xcode project
+        run: brew install xcodegen && (cd src && xcodegen generate)
+
+      - name: Run tests
+        run: |
+          xcodebuild -project src/EasyPresent.xcodeproj -scheme EasyPresentTests -configuration Debug \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
+            CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES \
+            test

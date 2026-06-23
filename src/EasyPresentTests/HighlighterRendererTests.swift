@@ -1,5 +1,5 @@
 import XCTest
-@testable import ZoomacIt
+@testable import EasyPresent
 
 final class HighlighterRendererTests: XCTestCase {
 

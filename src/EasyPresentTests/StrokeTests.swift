@@ -1,5 +1,5 @@
 import XCTest
-@testable import ZoomacIt
+@testable import EasyPresent
 
 final class StrokeTests: XCTestCase {
 
@@ -20,7 +20,7 @@ final class StrokeTests: XCTestCase {
             points: points,
             startPoint: CGPoint(x: 10, y: 20),
             endPoint: CGPoint(x: 30, y: 40),
-            color: .blue,
+            color: .cyan,
             lineWidth: 5.0,
             shapeType: .rectangle,
             isHighlighter: true
@@ -28,7 +28,7 @@ final class StrokeTests: XCTestCase {
         XCTAssertEqual(stroke.points.count, 2)
         XCTAssertEqual(stroke.startPoint, CGPoint(x: 10, y: 20))
         XCTAssertEqual(stroke.endPoint, CGPoint(x: 30, y: 40))
-        XCTAssertEqual(stroke.color, .blue)
+        XCTAssertEqual(stroke.color, .cyan)
         XCTAssertEqual(stroke.lineWidth, 5.0)
         XCTAssertEqual(stroke.shapeType, .rectangle)
         XCTAssertTrue(stroke.isHighlighter)

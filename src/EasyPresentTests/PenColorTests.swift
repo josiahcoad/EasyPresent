@@ -1,5 +1,5 @@
 import XCTest
-@testable import ZoomacIt
+@testable import EasyPresent
 
 final class PenColorTests: XCTestCase {
 
@@ -10,10 +10,10 @@ final class PenColorTests: XCTestCase {
     func testNSColorMapping() {
         XCTAssertEqual(PenColor.red.nsColor, .systemRed)
         XCTAssertEqual(PenColor.green.nsColor, .systemGreen)
-        XCTAssertEqual(PenColor.blue.nsColor, .systemBlue)
+        XCTAssertEqual(PenColor.cyan.nsColor, .systemCyan)
         XCTAssertEqual(PenColor.orange.nsColor, .systemOrange)
         XCTAssertEqual(PenColor.yellow.nsColor, .systemYellow)
-        XCTAssertEqual(PenColor.pink.nsColor, .systemPink)
+        XCTAssertEqual(PenColor.magenta.nsColor, .magenta)
     }
 
     func testFromCharacterCaseInsensitive() {
@@ -30,7 +30,7 @@ final class PenColorTests: XCTestCase {
     }
 
     func testEveryColorHasCharacterMapping() {
-        let chars = ["R", "G", "B", "O", "Y", "P"]
+        let chars = ["R", "G", "C", "O", "Y", "M"]
         let mapped = chars.compactMap { PenColor.from(character: $0) }
         XCTAssertEqual(mapped.count, PenColor.allCases.count,
                        "Every PenColor should be reachable via a character")

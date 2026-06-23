@@ -1,6 +1,6 @@
 import XCTest
 import Carbon.HIToolbox
-@testable import ZoomacIt
+@testable import EasyPresent
 
 final class SettingsTests: XCTestCase {
 
@@ -74,8 +74,8 @@ final class SettingsTests: XCTestCase {
     // MARK: - Round-trip
 
     func testPenColorRoundTrip() {
-        Settings.shared.defaultPenColor = .blue
-        XCTAssertEqual(Settings.shared.defaultPenColor, .blue)
+        Settings.shared.defaultPenColor = .cyan
+        XCTAssertEqual(Settings.shared.defaultPenColor, .cyan)
     }
 
     func testPenWidthRoundTrip() {
@@ -154,7 +154,7 @@ final class SettingsTests: XCTestCase {
 
     func testPenColorRawValue() {
         XCTAssertEqual(PenColor.red.rawValue, "red")
-        XCTAssertEqual(PenColor(rawValue: "blue"), .blue)
+        XCTAssertEqual(PenColor(rawValue: "cyan"), .cyan)
         XCTAssertNil(PenColor(rawValue: "invalid"))
     }
 
