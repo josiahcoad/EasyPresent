@@ -10,7 +10,7 @@ it all vanishes.
 
 ## Install
 
-Pick **one** of these. (More detail in **[INSTALL.md](INSTALL.md)**.)
+Pick **one** of these.
 
 **Option A — Homebrew (recommended)**
 ```bash
@@ -23,6 +23,15 @@ brew install --cask --no-quarantine easypresent
 Grab the latest `EasyPresent-vX.Y.Z.dmg` from
 [Releases](https://github.com/josiahcoad/EasyPresent/releases), drag it to Applications, then
 **right-click → Open** once (the build is ad-hoc signed, so Gatekeeper warns the first time).
+
+### Updating
+
+Homebrew users get new versions with:
+```bash
+brew update && brew upgrade easypresent
+```
+(or set up [`brew autoupdate`](https://github.com/Homebrew/homebrew-autoupdate) to do it
+automatically). Direct-download users re-download the latest DMG.
 
 ## Usage
 

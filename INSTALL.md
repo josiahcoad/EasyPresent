@@ -28,6 +28,15 @@ get the right-click-to-open step from Option B instead.
    - *or* run once in Terminal: `xattr -cr /Applications/EasyPresent.app`
 4. EasyPresent appears in the **menu bar**. Hold **⌥** and move the mouse.
 
+## Updating
+
+Homebrew users:
+```bash
+brew update && brew upgrade easypresent
+```
+(or set up [`brew autoupdate`](https://github.com/Homebrew/homebrew-autoupdate) for automatic
+upgrades). Direct-download users re-download the latest DMG from Releases.
+
 ## Using it
 
 | Gesture | Action |

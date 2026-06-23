@@ -11,7 +11,12 @@ VERSION     ?= 0.0.0
 -include .env
 export
 
-.PHONY: build test run release clean generate notarize dmg docs docs-build
+.PHONY: build test run release clean generate notarize dmg release-dmg docs docs-build
+
+# One command to ship an ad-hoc release: build DMG + GitHub release + bump Homebrew cask.
+release-dmg:
+	@test -n "$(VERSION)" || (echo "usage: make release-dmg VERSION=0.2.0" && exit 1)
+	./scripts/release.sh $(VERSION)
 
 build:
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) build

@@ -1,5 +1,14 @@
 # Releasing EasyPresent
 
+## One command
+
+```bash
+make release-dmg VERSION=0.2.0
+```
+This builds the DMG, creates the GitHub release (uploading the DMG), and bumps the Homebrew
+cask (`version` + `sha256`) in `josiahcoad/homebrew-tap`. Requires `gh` authenticated with
+write access to both repos. The manual steps below document what it does.
+
 ## 1. Build the DMG
 
 ```bash
