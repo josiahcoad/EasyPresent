@@ -1,30 +1,30 @@
 import SwiftUI
+import Carbon.HIToolbox
 import ServiceManagement
 
-/// The single settings tab: activation, cursor appearance, and gesture reference.
+/// The single settings tab: activation, appearance, and gesture reference.
 struct GeneralTab: View {
 
     @AppStorage(Settings.Keys.holdModifier) private var holdModifierRaw: String = ActivationModifier.option.rawValue
     @AppStorage(Settings.Keys.laserEnabled) private var laserEnabled: Bool = false
     @AppStorage(Settings.Keys.color) private var colorRaw: String = PenColor.red.rawValue
+    @AppStorage(Settings.Keys.toggleHotkeyKeyCode) private var toggleKeyCode: Int = Int(kVK_Space)
+    @AppStorage(Settings.Keys.toggleHotkeyModifiers) private var toggleModifiers: Int = Int(optionKey)
 
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
 
     private var holdModifier: ActivationModifier { ActivationModifier(rawValue: holdModifierRaw) ?? .option }
     private var sym: String { holdModifier.symbol }
+    private var toggleStr: String {
+        Settings.hotkeyDisplayString(keyCode: UInt32(toggleKeyCode), modifiers: UInt32(toggleModifiers))
+    }
 
     private var holdModifierBinding: Binding<ActivationModifier> {
-        Binding(
-            get: { holdModifier },
-            set: { holdModifierRaw = $0.rawValue }
-        )
+        Binding(get: { holdModifier }, set: { holdModifierRaw = $0.rawValue })
     }
 
     private var color: Binding<PenColor> {
-        Binding(
-            get: { PenColor(rawValue: colorRaw) ?? .red },
-            set: { colorRaw = $0.rawValue }
-        )
+        Binding(get: { PenColor(rawValue: colorRaw) ?? .red }, set: { colorRaw = $0.rawValue })
     }
 
     var body: some View {
@@ -34,6 +34,12 @@ struct GeneralTab: View {
                     ForEach(ActivationModifier.allCases, id: \.self) { mod in
                         Text(mod.displayName).tag(mod)
                     }
+                }
+                HStack {
+                    Text("Pin / unpin shortcut")
+                    Spacer()
+                    KeyRecorderView(keyCode: $toggleKeyCode, modifiers: $toggleModifiers)
+                        .frame(width: 140, height: 28)
                 }
             }
 
@@ -55,7 +61,7 @@ struct GeneralTab: View {
             Section("Gestures") {
                 gestureRow("Box", "\(sym) + drag")
                 gestureRow("Arrow", "\(sym)⇧ + drag")
-                gestureRow("Toggle", "\(sym)Space")
+                gestureRow("Pin / unpin", toggleStr)
                 gestureRow("Help", "⌥?")
                 gestureRow("Preferences", "⌥,")
                 gestureRow("Exit", "Release \(sym)")
@@ -69,16 +75,20 @@ struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
-        .onChange(of: holdModifierRaw) { _, _ in
-            // The pin/unpin hotkey is <modifier>+Space, so re-register when it changes.
-            HotkeyManager.shared.reregisterHotkeys()
-        }
+        .onChange(of: holdModifierRaw) { _, _ in reregister() }
+        .onChange(of: toggleKeyCode) { _, _ in reregister() }
+        .onChange(of: toggleModifiers) { _, _ in reregister() }
+    }
+
+    private func reregister() {
+        HotkeyManager.shared.reregisterHotkeys()
+        NotificationCenter.default.post(name: .hotkeysDidChange, object: nil)
     }
 
     private func gestureRow(_ label: String, _ gesture: String) -> some View {
         HStack {
             Text(label)
-                .frame(width: 110, alignment: .leading)
+                .frame(width: 130, alignment: .leading)
             Spacer()
             Text(gesture)
                 .foregroundStyle(.secondary)

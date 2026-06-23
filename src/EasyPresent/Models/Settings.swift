@@ -119,6 +119,8 @@ final class Settings: @unchecked Sendable {
         static let laserEnabled = "drawLaserEnabled"
         static let color = "drawColor"
         static let holdModifier = "drawHoldModifier"
+        static let toggleHotkeyKeyCode = "toggleHotkeyKeyCode"
+        static let toggleHotkeyModifiers = "toggleHotkeyModifiers"
 
         // Stats (local usage counters)
         static let statsArrows = "statsArrowsDrawn"
@@ -170,6 +172,8 @@ final class Settings: @unchecked Sendable {
             Keys.laserEnabled: false,
             Keys.color: PenColor.red.rawValue,
             Keys.holdModifier: ActivationModifier.option.rawValue,
+            Keys.toggleHotkeyKeyCode: Int(kVK_Space),
+            Keys.toggleHotkeyModifiers: Int(optionKey),
 
             // Text
             Keys.defaultFontSize: 24.0,
@@ -268,6 +272,22 @@ final class Settings: @unchecked Sendable {
     var color: PenColor {
         get { PenColor(rawValue: defaults.string(forKey: Keys.color) ?? "") ?? .red }
         set { defaults.set(newValue.rawValue, forKey: Keys.color) }
+    }
+
+    /// Configurable pin/unpin toggle hotkey (default ⌥Space).
+    var toggleHotkeyKeyCode: UInt32 {
+        get { UInt32(defaults.integer(forKey: Keys.toggleHotkeyKeyCode)) }
+        set { defaults.set(Int(newValue), forKey: Keys.toggleHotkeyKeyCode) }
+    }
+
+    var toggleHotkeyModifiers: UInt32 {
+        get { UInt32(defaults.integer(forKey: Keys.toggleHotkeyModifiers)) }
+        set { defaults.set(Int(newValue), forKey: Keys.toggleHotkeyModifiers) }
+    }
+
+    /// Display string for the toggle hotkey, e.g. "⌥Space".
+    var toggleDisplayString: String {
+        Settings.hotkeyDisplayString(keyCode: toggleHotkeyKeyCode, modifiers: toggleHotkeyModifiers)
     }
 
     var holdModifier: ActivationModifier {

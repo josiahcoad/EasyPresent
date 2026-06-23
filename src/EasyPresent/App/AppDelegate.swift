@@ -480,6 +480,7 @@ final class OnboardingCoordinator {
 
     private func currentText() -> String? {
         let mod = Settings.shared.holdModifier.symbol
+        let toggle = Settings.shared.toggleDisplayString
         // Help popover (⌥? held) takes priority over everything.
         if helpVisible {
             return """
@@ -487,7 +488,7 @@ final class OnboardingCoordinator {
             \(mod) + move:  halo
             \(mod) + drag:  box
             \(mod)⇧ + drag:  arrow
-            \(mod)Space:  toggle
+            \(toggle):  toggle
             """
         }
         if active {
@@ -496,8 +497,8 @@ final class OnboardingCoordinator {
             case .drawBox:        return "Now drag to draw a box"
             case .drawArrow:      return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .releaseToClear: return "Let go of \(mod) — your drawing clears"
-            case .pin:            return "Hold \(mod) again, then tap Space to keep it on"
-            case .unpin:          return "Tap \(mod)Space again to turn it off"
+            case .pin:            return "Hold \(mod) again, then press \(toggle) to keep it on"
+            case .unpin:          return "Press \(toggle) again to turn it off"
             case .tryHelp:        return "Last thing — press ⌥? any time to see this help"
             case .done:           return nil
             }
@@ -505,7 +506,7 @@ final class OnboardingCoordinator {
         // First-run ambient hints (after onboarding, only while drawing).
         if inDrawMode, Settings.shared.drawSessions <= 10 {
             var lines = "Drag to draw a box\n⇧ drag for an arrow"
-            if !isPinned { lines += "\nTry Space to toggle" }
+            if !isPinned { lines += "\nTry \(toggle) to toggle" }
             return lines
         }
         return nil

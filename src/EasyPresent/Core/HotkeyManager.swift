@@ -67,12 +67,13 @@ final class HotkeyManager: @unchecked Sendable {
 
         // Zoom and Draw are gesture-driven (⌥ double-click / hold ⌥) — no hotkeys.
 
-        // Register the pin/unpin toggle hotkey: <hold modifier> + Space.
-        let toggleModifier = Settings.shared.holdModifier.carbonFlag
+        // Register the user-configurable pin/unpin toggle hotkey (default ⌥Space).
+        let toggleKeyCode = Settings.shared.toggleHotkeyKeyCode
+        let toggleModifiers = Settings.shared.toggleHotkeyModifiers
         let drawToggleKeyID = EventHotKeyID(signature: hotKeySignature, id: drawToggleHotKeyID)
         let drawToggleStatus = RegisterEventHotKey(
-            UInt32(kVK_Space),
-            toggleModifier,
+            toggleKeyCode,
+            toggleModifiers,
             drawToggleKeyID,
             GetApplicationEventTarget(),
             0,
@@ -85,7 +86,7 @@ final class HotkeyManager: @unchecked Sendable {
         }
 
         NSLog("[HotkeyManager] Draw toggle hotkey registered: %@",
-              Settings.hotkeyDisplayString(keyCode: UInt32(kVK_Space), modifiers: toggleModifier))
+              Settings.hotkeyDisplayString(keyCode: toggleKeyCode, modifiers: toggleModifiers))
 
         // Register the help hotkey: ⌥/ (Option+slash). Shows help while held.
         let helpKeyID = EventHotKeyID(signature: hotKeySignature, id: helpHotKeyID)
