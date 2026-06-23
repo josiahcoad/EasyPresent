@@ -74,8 +74,6 @@ struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(Color(NSColor.windowBackgroundColor))
         .onChange(of: holdModifierRaw) { _, _ in reregister() }
         .onChange(of: toggleKeyCode) { _, _ in reregister() }
         .onChange(of: toggleModifiers) { _, _ in reregister() }

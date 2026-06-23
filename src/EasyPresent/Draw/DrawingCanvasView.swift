@@ -411,7 +411,12 @@ final class DrawingCanvasView: NSView {
 
         // 5. Halo ring + laser trail — only on the display the cursor is currently over.
         if cursorInside {
-            drawHalo(in: context)
+            if Settings.shared.dungeonModeEnabled {
+                drawDungeonPortal(in: context)
+                drawDungeonCursor(in: context)
+            } else {
+                drawHalo(in: context)
+            }
             drawLaserTrail(in: context)
         }
 
@@ -731,6 +736,110 @@ final class DrawingCanvasView: NSView {
             context.setStrokeColor(pulse.color.withAlphaComponent(alpha).cgColor)
             context.setLineWidth(2.5)
             context.strokeEllipse(in: rect)
+        }
+        context.restoreGState()
+    }
+
+    // MARK: - Dungeon Mode
+
+    /// Cached pixel-art gauntlet image from the asset catalog.
+    private static let dungeonCursorImage: CGImage? = {
+        guard let ns = NSImage(named: "DungeonCursor") else { return nil }
+        var rect = NSRect(origin: .zero, size: ns.size)
+        return ns.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+    }()
+
+    /// Draws the gauntlet pixel cursor at the current cursor point. The image's
+    /// fingertips point up-left, so we anchor the hot spot there (top-left of
+    /// the visible glove cluster).
+    private func drawDungeonCursor(in context: CGContext) {
+        guard let img = Self.dungeonCursorImage else { return }
+        // Render at roughly the system cursor size regardless of the source
+        // PNG's native resolution (the SweezyCursors asset ships at 128×128).
+        let targetHeight: CGFloat = 28
+        let scale = targetHeight / CGFloat(img.height)
+        let w = CGFloat(img.width) * scale
+        let h = CGFloat(img.height) * scale
+        // Hot spot at the index-finger tip, roughly upper-left of the image.
+        let rect = CGRect(x: cursorPoint.x - w * 0.15,
+                          y: cursorPoint.y - h * 0.85,
+                          width: w, height: h)
+        context.saveGState()
+        context.interpolationQuality = .none // keep pixels crispy
+        context.draw(img, in: rect)
+        context.restoreGState()
+    }
+
+    /// Procedural flaming portal where the halo would normally be. Animates
+    /// with the existing cursor-tracking timer's repaints. Honors the user's
+    /// color choice and the halo infill setting so dungeon mode composes with
+    /// the rest of the cursor styling.
+    private func drawDungeonPortal(in context: CGContext) {
+        let radius = max(28, Settings.shared.haloSize * 1.1)
+        let now = ProcessInfo.processInfo.systemUptime
+        let phase = CGFloat(now.truncatingRemainder(dividingBy: 6.0)) / 6.0
+        let rayCount = 56
+        let center = cursorPoint
+        let rect = CGRect(x: center.x - radius, y: center.y - radius,
+                          width: radius * 2, height: radius * 2)
+
+        // Derive hot (lighter, inner) and cool (darker, outer wash) tints from
+        // the user's chosen color so dungeon mode follows the active palette.
+        let base = Settings.shared.resolvedNSColor
+        let hot  = base.blended(withFraction: 0.55, of: .white) ?? base
+        let cool = base.blended(withFraction: 0.35, of: .black) ?? base
+
+        // Infill under the rays — same options the regular halo supports.
+        switch Settings.shared.haloInfillStyle {
+        case .filled:
+            context.setFillColor(base.withAlphaComponent(0.18).cgColor)
+            context.fillEllipse(in: rect)
+        case .border:
+            let bandWidth = max(2, radius * 0.225)
+            let inset = bandWidth / 2
+            context.saveGState()
+            context.setStrokeColor(base.withAlphaComponent(0.25).cgColor)
+            context.setLineWidth(bandWidth)
+            context.strokeEllipse(in: rect.insetBy(dx: inset, dy: inset))
+            context.restoreGState()
+        case .none:
+            break
+        }
+
+        // Outer soft glow ring so the portal "lives" against any background.
+        context.saveGState()
+        context.setShadow(offset: .zero, blur: radius * 0.9,
+                          color: base.withAlphaComponent(0.6).cgColor)
+        context.setStrokeColor(base.withAlphaComponent(0.9).cgColor)
+        context.setLineWidth(2)
+        context.strokeEllipse(in: rect)
+        context.restoreGState()
+
+        // Flame rays radiating outward, color-tinted to the chosen palette.
+        context.saveGState()
+        for i in 0..<rayCount {
+            let angle = (CGFloat(i) / CGFloat(rayCount)) * .pi * 2 + phase * .pi * 2
+            let flicker = 0.5 + 0.5 * sin(CGFloat(now) * 5 + CGFloat(i) * 1.7)
+            let len = radius * (0.275 + 0.45 * flicker)
+            let inner = radius * 0.92
+            let outer = radius + len
+            let p1 = CGPoint(x: center.x + cos(angle) * inner,
+                             y: center.y + sin(angle) * inner)
+            let p2 = CGPoint(x: center.x + cos(angle) * outer,
+                             y: center.y + sin(angle) * outer)
+            let path = CGMutablePath()
+            path.move(to: p1)
+            path.addLine(to: p2)
+            // Outer cool wash first (so the bright hot core sits on top).
+            context.addPath(path)
+            context.setLineCap(.round)
+            context.setLineWidth(4.5)
+            context.setStrokeColor(cool.withAlphaComponent(0.35).cgColor)
+            context.strokePath()
+            context.addPath(path)
+            context.setLineWidth(2.2)
+            context.setStrokeColor(hot.withAlphaComponent(0.85).cgColor)
+            context.strokePath()
         }
         context.restoreGState()
     }

@@ -17,7 +17,6 @@ struct SettingsView: View {
                 .tabItem { Text("Stats") }
         }
         .padding(.top, 12)                                     // clear the title bar
-        .background(Color(NSColor.windowBackgroundColor))      // match each tab's form
         .frame(minWidth: 520, minHeight: 500)
         .safeAreaInset(edge: .bottom) {
             HStack {
@@ -62,8 +61,6 @@ struct StatsTab: View {
             }
         }
         .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(Color(NSColor.windowBackgroundColor))
     }
 
     private func statRow(_ label: String, _ value: Int) -> some View {
@@ -90,8 +87,9 @@ struct AppearanceTab: View {
     @AppStorage(Settings.Keys.haloContrastEnabled) private var contrastEnabled: Bool = true
     @AppStorage(Settings.Keys.haloGlowEnabled) private var glowEnabled: Bool = false
     @AppStorage(Settings.Keys.haloInfillStyle) private var infillRaw: String = HaloInfillStyle.filled.rawValue
-    @AppStorage(Settings.Keys.clickPulseEnabled) private var clickPulseEnabled: Bool = true
+    @AppStorage(Settings.Keys.clickPulseEnabled) private var clickPulseEnabled: Bool = false
     @AppStorage(Settings.Keys.customColorHex) private var customColorHex: String = ""
+    @AppStorage(Settings.Keys.dungeonModeEnabled) private var dungeonModeEnabled: Bool = false
 
     private var presetColor: PenColor { PenColor(rawValue: colorRaw) ?? .red }
     private var hasCustomColor: Bool { !customColorHex.isEmpty && NSColor(hexString: customColorHex) != nil }
@@ -217,10 +215,22 @@ struct AppearanceTab: View {
                 Toggle("Trailing laser", isOn: $laserEnabled)
                 Toggle("Animate clicks", isOn: $clickPulseEnabled)
             }
+
+            Section {
+                Toggle("Dungeon mode 🗡️", isOn: $dungeonModeEnabled)
+                .onChange(of: dungeonModeEnabled) { _, isOn in
+                    if isOn {
+                        // Default the most thematic combination, but let users
+                        // tweak afterwards — the rays + infill honor whatever
+                        // color and infill style they pick.
+                        colorRaw = PenColor.orange.rawValue
+                        customColorHex = ""
+                        infillRaw = HaloInfillStyle.none.rawValue
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .background(Color(NSColor.windowBackgroundColor))
     }
 }
 

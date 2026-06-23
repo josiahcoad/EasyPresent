@@ -126,6 +126,7 @@ final class Settings: @unchecked Sendable {
         static let haloGlowEnabled = "drawHaloGlowEnabled"
         static let haloInfillStyle = "drawHaloInfillStyle"
         static let clickPulseEnabled = "drawClickPulseEnabled"
+        static let dungeonModeEnabled = "drawDungeonModeEnabled"
         static let holdModifier = "drawHoldModifier"
         static let toggleHotkeyKeyCode = "toggleHotkeyKeyCode"
         static let toggleHotkeyModifiers = "toggleHotkeyModifiers"
@@ -186,7 +187,8 @@ final class Settings: @unchecked Sendable {
             Keys.haloContrastEnabled: false,
             Keys.haloGlowEnabled: false,
             Keys.haloInfillStyle: HaloInfillStyle.filled.rawValue,
-            Keys.clickPulseEnabled: true,
+            Keys.clickPulseEnabled: false,
+            Keys.dungeonModeEnabled: false,
             Keys.holdModifier: ActivationModifier.option.rawValue,
             Keys.toggleHotkeyKeyCode: Int(kVK_Space),
             Keys.toggleHotkeyModifiers: Int(optionKey),
@@ -326,6 +328,13 @@ final class Settings: @unchecked Sendable {
     var clickPulseEnabled: Bool {
         get { defaults.bool(forKey: Keys.clickPulseEnabled) }
         set { defaults.set(newValue, forKey: Keys.clickPulseEnabled) }
+    }
+
+    /// Dungeon mode: swaps the halo for an animated flame portal + WoW-style
+    /// pixel gauntlet cursor. Overrides the regular cursor settings while on.
+    var dungeonModeEnabled: Bool {
+        get { defaults.bool(forKey: Keys.dungeonModeEnabled) }
+        set { defaults.set(newValue, forKey: Keys.dungeonModeEnabled) }
     }
 
     /// When on, holding the modifier won't enter draw mode while a text field is focused
@@ -488,6 +497,7 @@ final class Settings: @unchecked Sendable {
             Keys.color, Keys.laserEnabled,
             Keys.haloCenterStyle, Keys.haloSize, Keys.haloOuterRingEnabled, Keys.haloContrastEnabled,
             Keys.haloGlowEnabled, Keys.haloInfillStyle, Keys.clickPulseEnabled,
+            Keys.dungeonModeEnabled,
             Keys.defaultFontSize, Keys.fontWeight,
             Keys.defaultZoomLevel, Keys.zoomAnimationEnabled,
             Keys.breakTimerDefaultDuration, Keys.breakTimerColor,
