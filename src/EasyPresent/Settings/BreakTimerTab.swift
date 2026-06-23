@@ -150,9 +150,11 @@ struct BreakTimerTab: View {
     private func startPollTimer() {
         stopPollTimer()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-            if !BreakTimerWindowController.isTestSoundPlaying {
-                isTestPlaying = false
-                stopPollTimer()
+            MainActor.assumeIsolated {
+                if !BreakTimerWindowController.isTestSoundPlaying {
+                    isTestPlaying = false
+                    stopPollTimer()
+                }
             }
         }
     }

@@ -463,13 +463,15 @@ final class DrawingCanvasView: NSView {
     private func startLaserTimerIfNeeded() {
         guard laserTimer == nil else { return }
         laserTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            let now = ProcessInfo.processInfo.systemUptime
-            self.pruneLaserTrail(now: now)
-            self.needsDisplay = true
-            if self.laserTrail.isEmpty {
-                self.laserTimer?.invalidate()
-                self.laserTimer = nil
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let now = ProcessInfo.processInfo.systemUptime
+                self.pruneLaserTrail(now: now)
+                self.needsDisplay = true
+                if self.laserTrail.isEmpty {
+                    self.laserTimer?.invalidate()
+                    self.laserTimer = nil
+                }
             }
         }
     }

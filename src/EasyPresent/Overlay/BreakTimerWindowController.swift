@@ -114,15 +114,17 @@ final class BreakTimerWindowController {
     private func startCountdown() {
         countdownTimer?.invalidate()
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            let justExpired = self.state.tick()
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let justExpired = self.state.tick()
 
-            if justExpired {
-                NSLog("[BreakTimerController] Timer expired!")
-                self.playExpirationSound()
+                if justExpired {
+                    NSLog("[BreakTimerController] Timer expired!")
+                    self.playExpirationSound()
+                }
+
+                self.timerView?.needsDisplay = true
             }
-
-            self.timerView?.needsDisplay = true
         }
         NSLog("[BreakTimerController] Countdown started.")
     }
