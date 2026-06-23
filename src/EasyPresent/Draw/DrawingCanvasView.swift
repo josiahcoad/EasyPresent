@@ -273,18 +273,23 @@ final class DrawingCanvasView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        guard let window else { return }
-        // Seed the halo at the current pointer location so it appears immediately.
-        let winPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
-        cursorPoint = convert(winPoint, from: nil)
-        cursorInside = bounds.contains(cursorPoint)
+        guard window != nil else { return }
         if !didHideCursor {
             // CGDisplayHideCursor works window-server-wide, so it hides the system
             // cursor even though our overlay is a non-activating (background) panel.
             CGDisplayHideCursor(CGMainDisplayID())
             didHideCursor = true
         }
-        needsDisplay = true
+        // Seed the halo at the cursor on the NEXT runloop tick: the window is positioned
+        // (setFrameOrigin / orderFront) AFTER the content view is attached, so the frame
+        // isn't final here — seeding now would place the halo at an offset.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let window = self.window else { return }
+            let winPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+            self.cursorPoint = self.convert(winPoint, from: nil)
+            self.cursorInside = self.bounds.contains(self.cursorPoint)
+            self.needsDisplay = true
+        }
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
