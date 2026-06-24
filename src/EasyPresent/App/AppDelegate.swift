@@ -113,27 +113,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let down = NSEvent.modifierFlags.contains(Settings.shared.holdModifier.flag)
         defer { wasOptionDown = down }
 
+        // Toggle-only model: holding ⌥ only draws *within* an already-on session (⌥Space).
+        // It never opens the overlay on its own.
+        guard let controller = overlayController else { return }
         if down, !wasOptionDown {
-            // Press edge: make the overlay interactive (capture the mouse to draw + show the
-            // halo). For a pinned session that's already up, just re-arm interactivity; with
-            // nothing on screen, present a fresh spring session (already interactive).
-            if let controller = overlayController {
-                controller.setInteractive(true)
-            } else if noModeActive {
-                if Settings.shared.disableInTextFields, isEditingTextField() { return }
-                presentDrawMode(backgroundImage: nil, springLoaded: true)
-            }
+            controller.setInteractive(true)   // hold ⌥ → capture + draw
         } else if !down, wasOptionDown {
-            // Release edge: a spring (hold) session ends; a pinned session stays up but goes
-            // transparent so clicks/scroll/keys pass through to the app below.
-            if let controller = overlayController {
-                if controller.isSpringLoaded {
-                    controller.dismiss()
-                    overlayController = nil
-                } else {
-                    controller.setInteractive(false)
-                }
-            }
+            controller.setInteractive(false)  // release → transparent pointer (passthrough)
         }
     }
 
@@ -146,17 +132,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// current hold so it stays after Option is released; pressing it again exits.
     private func handleDrawToggleHotkey() {
         if let controller = overlayController {
-            if controller.isSpringLoaded {
-                controller.pinOpen()          // pin the active hold → sticky (annotations persist)
-                OnboardingCoordinator.shared.pinned()
-            } else {
-                zoomSourceForDrawReturn = nil  // already sticky → toggle off
-                controller.dismiss()
-                overlayController = nil
-            }
+            zoomSourceForDrawReturn = nil  // toggle off
+            controller.dismiss()
+            overlayController = nil
             return
         }
-        // No mode on screen — enter a sticky Draw session directly.
+        // Toggle on: a persistent, non-activating Draw session (halo pointer + passthrough).
         presentDrawMode(backgroundImage: nil, springLoaded: false)
     }
 
@@ -457,7 +438,7 @@ private final class HintContentView: NSView {
 final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
-    private enum Step { case holdToEnter, drawBox, cycleColor, drawArrow, releaseToClear, pin, drawPinned, exitPinned, tryHelp, openSettings, done }
+    private enum Step { case start, drawBox, cycleColor, drawArrow, exitInfo, tryHelp, openSettings, done }
 
     private var step: Step = .done
     private var active = false
@@ -477,7 +458,7 @@ final class OnboardingCoordinator {
 
     func start() {
         active = true
-        step = .holdToEnter
+        step = .start
         refresh()
     }
 
@@ -492,15 +473,14 @@ final class OnboardingCoordinator {
     func drawModeEntered() {
         inDrawMode = true
         isPinned = false
-        if active, step == .holdToEnter { step = .drawBox }
+        if active, step == .start { step = .drawBox }
         refresh()
     }
 
     func recordShape(_ type: ShapeType) {
         if active {
             if step == .drawBox, type == .rectangle { step = .cycleColor }
-            else if step == .drawArrow, type == .arrow { step = .releaseToClear }
-            else if step == .drawPinned { step = .exitPinned }  // drew again while pinned
+            else if step == .drawArrow, type == .arrow { step = .exitInfo }
         }
         refresh()
     }
@@ -516,12 +496,6 @@ final class OnboardingCoordinator {
         if active, step == .openSettings { complete() }
     }
 
-    func pinned() {
-        isPinned = true
-        if active, step == .pin { step = .drawPinned }
-        refresh()
-    }
-
     /// Help popover — shown only while ⌥? (Option+/) is held. During onboarding's final step,
     /// actually showing help is what advances to the congrats.
     func showHelp() { helpVisible = true; refresh() }
@@ -532,13 +506,9 @@ final class OnboardingCoordinator {
     }
 
     func drawModeExited() {
-        let wasPinned = isPinned
         inDrawMode = false
-        if active {
-            if step == .releaseToClear, !wasPinned { step = .pin }
-            else if step == .exitPinned, wasPinned { step = .tryHelp; isPinned = false; refresh(); return }
-        }
         isPinned = false
+        if active, step == .exitInfo { step = .tryHelp }
         refresh()
     }
 
@@ -594,24 +564,19 @@ final class OnboardingCoordinator {
         }
         if active {
             switch step {
-            case .holdToEnter:    return "👋 Hold \(mod) to start drawing — let go and it clears"
-            case .drawBox:        return "Now drag to draw a box"
-            case .drawArrow:      return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
-            case .cycleColor:     return "Press \(mod)↑ / \(mod)↓ to change color"
-            case .releaseToClear: return "Let go of \(mod) — your drawing clears"
-            case .pin:            return "Hold \(mod) again, then \(toggle) to keep your drawings on screen"
-            case .drawPinned:     return "Now shapes stick. Draw one again using \(mod)"
-            case .exitPinned:     return "Press \(toggle) to clear & exit"
-            case .tryHelp:        return "Press ⌥? any time to see this help"
-            case .openSettings:   return "Press \(mod), to open Settings"
-            case .done:           return nil
+            case .start:        return "👋 Press \(toggle) to turn on drawing"
+            case .drawBox:      return "Hold \(mod) and drag to draw a box"
+            case .cycleColor:   return "Press \(mod)↑ / \(mod)↓ to change color"
+            case .drawArrow:    return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
+            case .exitInfo:     return "Let go of \(mod) to click & scroll under your drawings. \(toggle) to clear & exit"
+            case .tryHelp:      return "Press ⌥? any time to see this help"
+            case .openSettings: return "Press \(mod), to open Settings"
+            case .done:         return nil
             }
         }
-        // First-run ambient hints (after onboarding, only while drawing).
+        // First-run ambient hints (after onboarding, only while a session is on).
         if inDrawMode, Settings.shared.drawSessions <= 10 {
-            var lines = "Drag to draw a box\n⇧ drag for an arrow"
-            if !isPinned { lines += "\n\(toggle) to keep drawings on screen" }
-            return lines
+            return "Hold \(mod) and drag to draw\n\(mod)⇧ drag for an arrow\n\(toggle) to exit"
         }
         return nil
     }

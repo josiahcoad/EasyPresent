@@ -38,29 +38,25 @@ automatically). Direct-download users re-download the latest DMG.
 
 ## Usage
 
-**Hold ⌥ Option to draw; release to use your screen normally.** While you hold ⌥ the cursor
-gets a halo and the overlay captures the mouse; the moment you let go it becomes invisible to
-the mouse, so clicks, scrolling, and typing all pass straight through to whatever's underneath
-(slides, video, browser). No permissions required.
+**Press ⌥Space to turn drawing on; ⌥Space again to clear & turn it off.** While it's on, a
+glowing halo follows your cursor as a presenter pointer, and clicks, scrolling, and typing all
+pass straight through to whatever's underneath (slides, video, browser). **Hold ⌥ to draw** —
+release ⌥ and you're back to the pass-through pointer. No permissions required.
 
-While holding **⌥**:
+While drawing is on:
 
 | Gesture | Action |
 |---|---|
-| **⌥ + move** | Halo pointer (+ laser trail if enabled) |
+| **move** | Glowing halo pointer (clicks/scroll pass through) |
 | **⌥ + drag** | Draw a box |
 | **⌥⇧ + drag** | Draw an arrow (tip at the cursor) |
 | **⌥↑ / ⌥↓** | Cycle the draw color |
 | **⌥E** | Erase everything |
 | **⌥Z** | Undo the last shape |
 | **⌥0–9** | Auto-clear shapes after N seconds (0 = off) |
-| **⌥Space** | Pin / unpin (see below) |
+| **⌥Space** | Turn drawing off (clears) |
 | **⌥?** (hold) | Show the help card |
 | **⌥,** | Open Settings |
-
-**Pinned mode (⌥Space):** keeps your annotations on screen and turns the halo into a
-persistent presenter pointer that follows your cursor — while clicks and scrolling still pass
-through to the app below. Hold ⌥ to draw more; ⌥Space again to exit.
 
 A guided onboarding runs on first launch (replay it any time from **Settings → General →
 Launch Onboarding**), and brief hints appear for your first few sessions.
