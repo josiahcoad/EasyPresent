@@ -91,17 +91,11 @@ final class OverlayWindowController {
             return
         }
 
-        // Presenter Draw: one transparent overlay per display so the halo/laser follow
-        // the cursor across all screens. A spring (hold-Option) session is NON-activating
-        // so it never steals keyboard focus; a sticky session activates normally.
-        let mouseScreen = NSScreen.screenContainingMouse ?? NSScreen.main
+        // Presenter Draw: one transparent overlay per display so the halo follows the cursor
+        // across all screens. Always NON-activating so it never steals keyboard focus —
+        // keyboard/clicks/scroll stay with the foreground app (passthrough).
         for screen in NSScreen.screens {
-            presentOverlay(on: screen, backgroundImage: nil,
-                           nonactivating: springLoaded,
-                           makeKey: !springLoaded && screen == mouseScreen)
-        }
-        if !springLoaded {
-            NSApplication.shared.activate(ignoringOtherApps: true)
+            presentOverlay(on: screen, backgroundImage: nil, nonactivating: true, makeKey: false)
         }
     }
 

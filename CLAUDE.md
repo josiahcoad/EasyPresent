@@ -43,21 +43,22 @@ the GitHub release, and bumps the Homebrew cask in `josiahcoad/homebrew-tap`. Se
 | **Models/Utils** | `src/EasyPresent/Models/`, `Utilities/` | `Settings`, `DrawingState`, `ActivationModifier`, extensions |
 
 ### Activation model (key design)
+- **Toggle-only.** ⌥Space turns a Draw session on/off (`handleDrawToggleHotkey`). There is no
+  hold-to-enter spring mode — holding ⌥ does nothing unless a session is already on.
 - **Transparent-by-default overlay.** `OverlayWindow` starts `ignoresMouseEvents = true`, so
   clicks/scroll/keys pass through to the app below **natively** — no event injection, no
-  Accessibility. It captures the mouse (draws) **only while the hold modifier is held**.
-- A ~33 Hz timer in `AppDelegate.pollOption` reads `NSEvent.modifierFlags`. Press edge →
-  present a spring overlay (or, for a pinned session already up, `setInteractive(true)`);
-  release edge → dismiss a hold session, or `setInteractive(false)` a pinned one (back to
-  transparent). `OverlayWindow.setInteractive` flips `ignoresMouseEvents`.
+  Accessibility. While a session is on it captures the mouse (draws) **only while ⌥ is held**.
+- A ~33 Hz timer in `AppDelegate.pollOption` reads `NSEvent.modifierFlags`; *only when a
+  session exists*, ⌥ press → `setInteractive(true)` (capture + draw), ⌥ release →
+  `setInteractive(false)` (transparent pointer). `OverlayWindow.setInteractive` flips
+  `ignoresMouseEvents`.
 - **Halo vs. capture are decoupled.** `OverlayWindowController.setInteractive` toggles window
   capture with the modifier, but the canvas halo (`DrawingCanvasView.setHaloActive`) stays on
-  for a **pinned** session even while transparent — so the halo reads as a persistent presenter
+  for the whole session even while transparent — so the halo reads as a persistent presenter
   pointer while clicks/scroll still pass through. The halo position comes from a 120 Hz
   global-mouse timer (works regardless of mouse capture).
 - `OverlayWindow` is a borderless `.nonactivatingPanel` that never becomes key, so keyboard
-  focus (⌥←/→, typing, Space, arrows) always stays with the foreground app. Pinning (⌥Space →
-  `pinOpen()`) just persists the window + strokes; you still hold ⌥ to draw.
+  focus (⌥←/→, typing, Space, arrows) always stays with the foreground app.
 - One overlay **per display** (macOS "Displays have separate Spaces" blocks a single window
   from spanning screens); each canvas paints only while the cursor is over it.
 
