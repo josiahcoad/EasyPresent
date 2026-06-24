@@ -211,11 +211,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OnboardingCoordinator.shared.colorCycled()
     }
 
-    /// ⌥0–⌥9 while drawing sets the auto-disappear timeout (0 = off). Only meaningful in a
-    /// toggled (pinned) session — in a hold session everything clears on ⌥ release anyway.
+    /// ⌥0–⌥9 while drawing (hold *or* pinned) sets the auto-disappear timeout (0 = off). The
+    /// setting persists and can be changed any time you're holding ⌥; it only *takes effect*
+    /// in a toggled (pinned) session, since hold-mode shapes clear on ⌥ release anyway.
     private func setAutoDisappear(seconds: Int) {
-        guard let controller = overlayController, !controller.isSpringLoaded else { return }
+        guard let controller = overlayController else { return }
         Settings.shared.autoDisappearSeconds = Double(seconds)
+        controller.applyAutoDisappear(Double(seconds))  // re-time shapes already on screen
         let message = seconds == 0
             ? "Auto-disappear off"
             : "Shapes disappear in \(seconds) second\(seconds == 1 ? "" : "s")"
@@ -580,23 +582,24 @@ final class OnboardingCoordinator {
         // Help popover (⌥? held) takes priority over everything.
         if helpVisible {
             return """
-            EasyPresent — controls
-            \(mod) + move:  halo
+            EasyPresent — hold \(mod) to draw, release to use your screen
             \(mod) + drag:  box
             \(mod)⇧ + drag:  arrow
             \(mod)↑ / \(mod)↓:  color
-            \(toggle):  toggle
+            \(mod)E / \(mod)Z:  erase / undo
+            \(mod)0–9:  auto-clear shapes (seconds)
+            \(toggle):  keep drawings on screen
             """
         }
         if active {
             switch step {
-            case .holdToEnter:    return "👋 Hold \(mod) to start drawing"
+            case .holdToEnter:    return "👋 Hold \(mod) to start drawing — let go and it clears"
             case .drawBox:        return "Now drag to draw a box"
             case .drawArrow:      return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .cycleColor:     return "Press \(mod)↑ / \(mod)↓ to change color"
             case .releaseToClear: return "Let go of \(mod) — your drawing clears"
-            case .pin:            return "Hold \(mod) again, then press \(toggle) to keep it on"
-            case .unpin:          return "Press \(toggle) again to turn it off"
+            case .pin:            return "Hold \(mod) again, then \(toggle) to keep your drawings on screen"
+            case .unpin:          return "Now you can click & scroll under them. \(toggle) again to clear & exit"
             case .tryHelp:        return "Press ⌥? any time to see this help"
             case .openSettings:   return "Press \(mod), to open Settings"
             case .done:           return nil
@@ -605,7 +608,7 @@ final class OnboardingCoordinator {
         // First-run ambient hints (after onboarding, only while drawing).
         if inDrawMode, Settings.shared.drawSessions <= 10 {
             var lines = "Drag to draw a box\n⇧ drag for an arrow"
-            if !isPinned { lines += "\nTry \(toggle) to toggle" }
+            if !isPinned { lines += "\n\(toggle) to keep drawings on screen" }
             return lines
         }
         return nil

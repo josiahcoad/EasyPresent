@@ -59,6 +59,11 @@ final class OverlayWindowController {
         canvasViews.forEach { $0.clearCanvas() }
     }
 
+    /// Apply a newly-set auto-disappear timeout to shapes already on screen (⌥0–9).
+    func applyAutoDisappear(_ seconds: Double) {
+        canvasViews.forEach { $0.setAutoDisappearLife(seconds) }
+    }
+
     /// Undo the most recent shape on the canvas under the cursor (undo hotkey).
     func undo() {
         canvasUnderMouse?.undo()

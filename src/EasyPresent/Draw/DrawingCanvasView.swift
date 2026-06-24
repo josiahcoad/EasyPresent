@@ -122,6 +122,16 @@ final class DrawingCanvasView: NSView {
         let life: TimeInterval
     }
     private var timedShapes: [TimedShape] = []
+
+    /// A snapshot of previously-permanent strokes (the whole `finishedLayer`) that now fades
+    /// as one unit — created when the user sets an auto-disappear timeout while shapes are
+    /// already on screen.
+    private struct TimedLayer {
+        let image: CGImage
+        let drawnAt: TimeInterval
+        let life: TimeInterval
+    }
+    private var timedLayers: [TimedLayer] = []
     private var autoDisappearTimer: Timer?
 
     // MARK: - Text Mode
@@ -382,6 +392,7 @@ final class DrawingCanvasView: NSView {
             autoDisappearTimer?.invalidate()
             autoDisappearTimer = nil
             timedShapes.removeAll()
+            timedLayers.removeAll()
             laserTrail.removeAll()
             if didHideCursor {
                 CGDisplayShowCursor(CGMainDisplayID())
@@ -411,7 +422,9 @@ final class DrawingCanvasView: NSView {
             context.draw(finished, in: bounds)
         }
 
-        // 2.5 Auto-disappearing shapes (fade out and remove themselves on a timer).
+        // 2.5 Auto-disappearing content (fades out + removes itself on a timer): first the
+        // snapshot of formerly-permanent strokes, then individually-timed shapes on top.
+        drawTimedLayers(in: context)
         drawTimedShapes(in: context)
 
         // 3. Draw previewLayer (shape being dragged)
@@ -491,6 +504,29 @@ final class DrawingCanvasView: NSView {
         context.restoreGState()
     }
 
+    /// Fade fraction for an auto-disappearing item with the given age/life (1 until the last
+    /// 0.5 s — or 35% of a short life — then linear to 0).
+    private func fadeAlpha(age: TimeInterval, life: TimeInterval) -> CGFloat {
+        let remaining = life - age
+        guard remaining > 0 else { return 0 }
+        let fadeWindow = min(0.5, life * 0.35)
+        return fadeWindow > 0 ? min(1.0, CGFloat(remaining / fadeWindow)) : 1.0
+    }
+
+    /// Draw each fading snapshot layer (formerly-permanent strokes) under the timed shapes.
+    private func drawTimedLayers(in context: CGContext) {
+        guard !timedLayers.isEmpty else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        for layer in timedLayers {
+            let alpha = fadeAlpha(age: now - layer.drawnAt, life: layer.life)
+            guard alpha > 0 else { continue }
+            context.saveGState()
+            context.setAlpha(alpha)
+            context.draw(layer.image, in: bounds)
+            context.restoreGState()
+        }
+    }
+
     /// Stroke each auto-disappearing shape, fading it out over the tail end of its life.
     private func drawTimedShapes(in context: CGContext) {
         guard !timedShapes.isEmpty else { return }
@@ -499,11 +535,8 @@ final class DrawingCanvasView: NSView {
         context.setLineCap(.round)
         context.setLineJoin(.round)
         for shape in timedShapes {
-            let remaining = shape.life - (now - shape.drawnAt)
-            guard remaining > 0 else { continue }
-            // Fade over the last 0.5s (or 35% of a short life, whichever is smaller).
-            let fadeWindow = min(0.5, shape.life * 0.35)
-            let alpha: CGFloat = fadeWindow > 0 ? min(1.0, CGFloat(remaining / fadeWindow)) : 1.0
+            let alpha = fadeAlpha(age: now - shape.drawnAt, life: shape.life)
+            guard alpha > 0 else { continue }
             context.setStrokeColor(shape.color.withAlphaComponent(alpha).cgColor)
             context.setLineWidth(shape.penWidth)
             context.addPath(shape.path)
@@ -783,7 +816,7 @@ final class DrawingCanvasView: NSView {
         startAutoDisappearTimerIfNeeded()
     }
 
-    /// Repaint ~60 Hz while any timed shape is alive, pruning expired ones. Self-stopping.
+    /// Repaint ~60 Hz while any timed content is alive, pruning expired items. Self-stopping.
     private func startAutoDisappearTimerIfNeeded() {
         guard autoDisappearTimer == nil else { return }
         autoDisappearTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
@@ -791,13 +824,64 @@ final class DrawingCanvasView: NSView {
                 guard let self else { return }
                 let now = ProcessInfo.processInfo.systemUptime
                 self.timedShapes.removeAll { now - $0.drawnAt >= $0.life }
+                self.timedLayers.removeAll { now - $0.drawnAt >= $0.life }
                 self.needsDisplay = true
-                if self.timedShapes.isEmpty {
+                if self.timedShapes.isEmpty && self.timedLayers.isEmpty {
                     self.autoDisappearTimer?.invalidate()
                     self.autoDisappearTimer = nil
                 }
             }
         }
+    }
+
+    /// Apply a newly-chosen auto-disappear timeout (⌥0–9) to what's *already* on screen, so it
+    /// behaves as the user expects:
+    ///  • life > 0 — fade everything currently visible `life` seconds from now. Strokes that
+    ///    were permanent (`finishedLayer`) become a fading snapshot; already-timed items are
+    ///    re-timed to the new value.
+    ///  • life == 0 — turn auto-disappear off: bake whatever is mid-fade back to permanent.
+    /// Only acts in a pinned session (a hold session's strokes clear on ⌥ release regardless).
+    func setAutoDisappearLife(_ life: TimeInterval) {
+        guard !exitsOnOptionRelease else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if life > 0 {
+            if let layer = finishedLayer {
+                timedLayers.append(TimedLayer(image: layer, drawnAt: now, life: life))
+                finishedLayer = nil
+            }
+            timedLayers = timedLayers.map { TimedLayer(image: $0.image, drawnAt: now, life: life) }
+            timedShapes = timedShapes.map {
+                TimedShape(path: $0.path, color: $0.color, penWidth: $0.penWidth, drawnAt: now, life: life)
+            }
+            if !timedLayers.isEmpty || !timedShapes.isEmpty { startAutoDisappearTimerIfNeeded() }
+        } else {
+            bakeTimedContentIntoFinished()
+        }
+        setNeedsDisplay(bounds)
+    }
+
+    /// Composite all currently-fading content back into the permanent `finishedLayer` (used
+    /// when auto-disappear is turned off so existing shapes stop fading and stay).
+    private func bakeTimedContentIntoFinished() {
+        guard !timedLayers.isEmpty || !timedShapes.isEmpty else { return }
+        let size = bounds.size
+        guard size.width > 0, size.height > 0, let ctx = CGContext.createBitmapContext(size: size) else { return }
+        let full = CGRect(origin: .zero, size: size)
+        if let existing = finishedLayer { ctx.draw(existing, in: full) }
+        for layer in timedLayers { ctx.draw(layer.image, in: full) }
+        ctx.setLineCap(.round)
+        ctx.setLineJoin(.round)
+        for shape in timedShapes {
+            ctx.setStrokeColor(shape.color.cgColor)
+            ctx.setLineWidth(shape.penWidth)
+            ctx.addPath(shape.path)
+            ctx.strokePath()
+        }
+        finishedLayer = ctx.makeImage()
+        timedShapes.removeAll()
+        timedLayers.removeAll()
+        autoDisappearTimer?.invalidate()
+        autoDisappearTimer = nil
     }
 
     // MARK: - Erase / Undo (driven by draw-mode hotkeys)
@@ -813,6 +897,7 @@ final class DrawingCanvasView: NSView {
         }
         finishedLayer = nil
         timedShapes.removeAll()
+        timedLayers.removeAll()
         drawingState.spotlightRect = nil
         setNeedsDisplay(bounds)
     }
