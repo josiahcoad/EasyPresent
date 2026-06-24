@@ -180,7 +180,7 @@ final class Settings: @unchecked Sendable {
             Keys.spotlightDarkness: 0.6,
             Keys.laserEnabled: false,
             Keys.color: PenColor.orange.rawValue,
-            Keys.haloCenterStyle: HaloCenterStyle.dot.rawValue,
+            Keys.haloCenterStyle: HaloCenterStyle.none.rawValue,
             Keys.haloSize: 36.0,
             Keys.haloOuterRingEnabled: true,
             Keys.haloContrastEnabled: false,
@@ -287,7 +287,7 @@ final class Settings: @unchecked Sendable {
 
     /// The mark drawn at the exact cursor point: plus, dot, or none.
     var haloCenterStyle: HaloCenterStyle {
-        get { HaloCenterStyle(rawValue: defaults.string(forKey: Keys.haloCenterStyle) ?? "") ?? .plus }
+        get { HaloCenterStyle(rawValue: defaults.string(forKey: Keys.haloCenterStyle) ?? "") ?? .none }
         set { defaults.set(newValue.rawValue, forKey: Keys.haloCenterStyle) }
     }
 

@@ -82,7 +82,7 @@ struct AppearanceTab: View {
 
     @AppStorage(Settings.Keys.color) private var colorRaw: String = PenColor.orange.rawValue
     @AppStorage(Settings.Keys.laserEnabled) private var laserEnabled: Bool = false
-    @AppStorage(Settings.Keys.haloCenterStyle) private var centerRaw: String = HaloCenterStyle.dot.rawValue
+    @AppStorage(Settings.Keys.haloCenterStyle) private var centerRaw: String = HaloCenterStyle.none.rawValue
     @AppStorage(Settings.Keys.haloSize) private var haloSize: Double = 36
     @AppStorage(Settings.Keys.haloOuterRingEnabled) private var outerRing: Bool = true
     @AppStorage(Settings.Keys.haloContrastEnabled) private var contrastEnabled: Bool = true
