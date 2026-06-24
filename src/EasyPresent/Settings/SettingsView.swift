@@ -26,7 +26,8 @@ struct SettingsView: View {
                 Spacer()
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 14)
             .background(.bar)
         }
         .alert("Reset to Defaults", isPresented: $showResetAlert) {

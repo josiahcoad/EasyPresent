@@ -589,15 +589,15 @@ final class OnboardingCoordinator {
         // Help popover (⌥? held) takes priority over everything.
         if helpVisible {
             return """
-            EasyPresent — hold \(mod) to draw, release to use your screen
-            \(mod) + move:  halo
+            EasyPresent Shortcuts
+            \(mod):  highlight
+            \(toggle):  toggle highlight
             \(mod) + drag:  draw
             \(mod)⌘ + drag:  box
             \(mod)⇧ + drag:  arrow
-            \(mod)↑ / \(mod)↓:  color
             \(mod)E / \(mod)Z:  erase / undo
+            \(mod)↑ / \(mod)↓:  cycle color
             \(mod)0–9:  auto-clear shapes (seconds)
-            \(toggle):  keep drawings on screen
             """
         }
         if active {

@@ -71,13 +71,14 @@ struct GeneralTab: View {
             }
 
             Section("Gestures") {
+                gestureRow("Highlight", sym)
+                gestureRow("Toggle highlight", toggleStr)
                 gestureRow("Draw", "\(sym) + drag")
                 gestureRow("Box", "\(sym)⌘ + drag")
                 gestureRow("Arrow", "\(sym)⇧ + drag")
-                gestureRow("Toggle", toggleStr)
-                gestureRow("Cycle color", "\(sym)↑ / \(sym)↓")
                 gestureRow("Erase all", "\(sym)E")
                 gestureRow("Undo", "\(sym)Z")
+                gestureRow("Cycle color", "\(sym)↑ / \(sym)↓")
                 gestureRow("Auto-clear time", "\(sym)0–9")
                 gestureRow("Help", "⌥?")
                 gestureRow("Preferences", "⌥,")
