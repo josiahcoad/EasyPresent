@@ -107,6 +107,12 @@ final class DrawingCanvasView: NSView {
     /// the halo "slide out" near screen edges) or the cursor crosses displays.
     private var cursorTrackTimer: Timer?
 
+    /// Observes clicks that land on *other* apps (i.e. while the overlay is transparent in
+    /// pinned mode) so the halo still does its click "compress" there. Global monitors only
+    /// see other-app events, so this never double-fires with the local mouseDown/Up handlers
+    /// used while drawing — and mouse-event monitors need no permission.
+    private var clickMonitor: Any?
+
     /// Tracking area so `mouseMoved` fires across the whole view (no button down).
     private var mouseTrackingArea: NSTrackingArea?
 
@@ -348,6 +354,18 @@ final class DrawingCanvasView: NSView {
         laserTrail.removeAll()
         syncCursorToGlobalMouse()
         startCursorTrackingIfNeeded()
+        startClickMonitorIfNeeded()
+    }
+
+    /// Mirror the click "compress" for clicks that pass through to the app below (pinned mode).
+    private func startClickMonitorIfNeeded() {
+        guard clickMonitor == nil else { return }
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, self.haloActive else { return }
+                self.setHaloScaleTarget(event.type == .leftMouseDown ? Self.haloPressScale : 1.0)
+            }
+        }
     }
 
     /// Show/hide the halo (and hide/restore the system cursor with it). Independent of mouse
@@ -425,6 +443,8 @@ final class DrawingCanvasView: NSView {
             pulseTimer?.invalidate()
             pulseTimer = nil
             clickPulses.removeAll()
+            if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+            clickMonitor = nil
             haloPressTimer?.invalidate()
             haloPressTimer = nil
             haloScale = 1.0
