@@ -482,38 +482,40 @@ final class DrawingCanvasView: NSView {
         }
     }
 
-    /// A soft glowing ring centered on the cursor so the audience can find the pointer.
+    /// A glowing neon ring centered on the cursor so the audience can follow the pointer.
     private func drawHalo(in context: CGContext) {
         let haloColor = Settings.shared.color.nsColor
-        let radius: CGFloat = 22 * haloScale
+        let radius: CGFloat = 24 * haloScale
         let rect = CGRect(x: cursorPoint.x - radius, y: cursorPoint.y - radius,
                           width: radius * 2, height: radius * 2)
         context.saveGState()
-        // Soft filled glow.
-        context.setFillColor(haloColor.withAlphaComponent(0.18).cgColor)
-        context.fillEllipse(in: rect)
-        // Crisp ring with a dark contrast edge so it shows on any background.
-        context.setStrokeColor(NSColor.black.withAlphaComponent(0.35).cgColor)
-        context.setLineWidth(4.5)
+        context.setLineCap(.round)
+
+        // 1. Outer bloom — stroke the ring with a large soft shadow in the halo color; a second
+        // pass deepens the glow (the shadow re-applies per draw).
+        context.saveGState()
+        context.setShadow(offset: .zero, blur: 11 * haloScale,
+                          color: haloColor.withAlphaComponent(0.7).cgColor)
+        context.setStrokeColor(haloColor.cgColor)
+        context.setLineWidth(6 * haloScale)
         context.strokeEllipse(in: rect)
-        context.setStrokeColor(haloColor.withAlphaComponent(0.95).cgColor)
-        context.setLineWidth(2.5)
+        context.strokeEllipse(in: rect)
+        context.restoreGState()
+
+        // 2. Faint fill tint inside the ring.
+        context.setFillColor(haloColor.withAlphaComponent(0.08).cgColor)
+        context.fillEllipse(in: rect)
+
+        // 3. Bright crisp ring core on top.
+        context.setStrokeColor(haloColor.withAlphaComponent(0.98).cgColor)
+        context.setLineWidth(4 * haloScale)
         context.strokeEllipse(in: rect)
 
-        // "+" crosshair marking the exact pointer position at the halo center.
-        let arm: CGFloat = 7 * haloScale
-        context.setLineCap(.round)
-        func plus(color: NSColor, width: CGFloat) {
-            context.setStrokeColor(color.cgColor)
-            context.setLineWidth(width)
-            context.move(to: CGPoint(x: cursorPoint.x - arm, y: cursorPoint.y))
-            context.addLine(to: CGPoint(x: cursorPoint.x + arm, y: cursorPoint.y))
-            context.move(to: CGPoint(x: cursorPoint.x, y: cursorPoint.y - arm))
-            context.addLine(to: CGPoint(x: cursorPoint.x, y: cursorPoint.y + arm))
-            context.strokePath()
-        }
-        plus(color: NSColor.black.withAlphaComponent(0.35), width: 4)  // contrast underlay
-        plus(color: haloColor.withAlphaComponent(0.95), width: 2)
+        // 4. Inner white-hot highlight for the neon look.
+        context.setStrokeColor(NSColor.white.withAlphaComponent(0.55).cgColor)
+        context.setLineWidth(1.3 * haloScale)
+        context.strokeEllipse(in: rect.insetBy(dx: 1.6, dy: 1.6))
+
         context.restoreGState()
     }
 
