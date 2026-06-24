@@ -126,6 +126,10 @@ final class OverlayWindowController {
 
     func dismiss() {
         guard !overlayWindows.isEmpty else { return }
+        // Drop the halo on every canvas first — that drains the CGDisplayHideCursor
+        // refcount via setHaloActive(false). Belt-and-suspenders for the leak path
+        // where viewWillMove(toWindow:nil) might not fire on a torn-down window.
+        canvasViews.forEach { $0.setHaloActive(false) }
         for window in overlayWindows {
             window.orderOut(nil)
             window.close()

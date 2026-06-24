@@ -126,11 +126,9 @@ final class Settings: @unchecked Sendable {
         static let haloGlowEnabled = "drawHaloGlowEnabled"
         static let haloInfillStyle = "drawHaloInfillStyle"
         static let clickPulseEnabled = "drawClickPulseEnabled"
-        static let dungeonModeEnabled = "drawDungeonModeEnabled"
         static let holdModifier = "drawHoldModifier"
         static let toggleHotkeyKeyCode = "toggleHotkeyKeyCode"
         static let toggleHotkeyModifiers = "toggleHotkeyModifiers"
-        static let disableInTextFields = "drawDisableInTextFields"
         static let autoDisappearSeconds = "drawAutoDisappearSeconds"
 
         // Stats (local usage counters)
@@ -183,17 +181,15 @@ final class Settings: @unchecked Sendable {
             Keys.laserEnabled: false,
             Keys.color: PenColor.orange.rawValue,
             Keys.haloCenterStyle: HaloCenterStyle.dot.rawValue,
-            Keys.haloSize: 32.0,
+            Keys.haloSize: 36.0,
             Keys.haloOuterRingEnabled: true,
             Keys.haloContrastEnabled: false,
-            Keys.haloGlowEnabled: false,
-            Keys.haloInfillStyle: HaloInfillStyle.filled.rawValue,
-            Keys.clickPulseEnabled: false,
-            Keys.dungeonModeEnabled: false,
+            Keys.haloGlowEnabled: true,
+            Keys.haloInfillStyle: HaloInfillStyle.border.rawValue,
+            Keys.clickPulseEnabled: true,
             Keys.holdModifier: ActivationModifier.option.rawValue,
             Keys.toggleHotkeyKeyCode: Int(kVK_Space),
             Keys.toggleHotkeyModifiers: Int(optionKey),
-            Keys.disableInTextFields: false,
             Keys.autoDisappearSeconds: 0.0,
 
             // Text
@@ -322,7 +318,7 @@ final class Settings: @unchecked Sendable {
 
     /// How the area inside the ring is treated: filled, border band, or empty.
     var haloInfillStyle: HaloInfillStyle {
-        get { HaloInfillStyle(rawValue: defaults.string(forKey: Keys.haloInfillStyle) ?? "") ?? .filled }
+        get { HaloInfillStyle(rawValue: defaults.string(forKey: Keys.haloInfillStyle) ?? "") ?? .border }
         set { defaults.set(newValue.rawValue, forKey: Keys.haloInfillStyle) }
     }
 
@@ -330,20 +326,6 @@ final class Settings: @unchecked Sendable {
     var clickPulseEnabled: Bool {
         get { defaults.bool(forKey: Keys.clickPulseEnabled) }
         set { defaults.set(newValue, forKey: Keys.clickPulseEnabled) }
-    }
-
-    /// Dungeon mode: swaps the halo for an animated flame portal + WoW-style
-    /// pixel gauntlet cursor. Overrides the regular cursor settings while on.
-    var dungeonModeEnabled: Bool {
-        get { defaults.bool(forKey: Keys.dungeonModeEnabled) }
-        set { defaults.set(newValue, forKey: Keys.dungeonModeEnabled) }
-    }
-
-    /// When on, holding the modifier won't enter draw mode while a text field is focused
-    /// (so ⌥←/→ word-jump etc. keep working). Requires Accessibility; default off.
-    var disableInTextFields: Bool {
-        get { defaults.bool(forKey: Keys.disableInTextFields) }
-        set { defaults.set(newValue, forKey: Keys.disableInTextFields) }
     }
 
     /// When > 0, each drawn box/arrow fades away this many seconds after it's drawn.
@@ -508,7 +490,6 @@ final class Settings: @unchecked Sendable {
             Keys.color, Keys.laserEnabled,
             Keys.haloCenterStyle, Keys.haloSize, Keys.haloOuterRingEnabled, Keys.haloContrastEnabled,
             Keys.haloGlowEnabled, Keys.haloInfillStyle, Keys.clickPulseEnabled,
-            Keys.dungeonModeEnabled,
             Keys.defaultFontSize, Keys.fontWeight,
             Keys.defaultZoomLevel, Keys.zoomAnimationEnabled,
             Keys.breakTimerDefaultDuration, Keys.breakTimerColor,

@@ -130,7 +130,7 @@ final class DrawingCanvasView: NSView {
 
     /// How small the halo gets while the button is held, and the per-tick easing factor
     /// of the approach toward the target (higher = snappier).
-    private static let haloPressScale: CGFloat = 0.62
+    private static let haloPressScale: CGFloat = 0.78
     private static let haloScaleEasing: CGFloat = 0.30
 
     // MARK: - Auto-disappearing shapes
@@ -357,13 +357,19 @@ final class DrawingCanvasView: NSView {
         startClickMonitorIfNeeded()
     }
 
-    /// Mirror the click "compress" for clicks that pass through to the app below (pinned mode).
+    /// Mirror the click feedback for clicks that pass through to the app below (pinned mode):
+    /// halo compress + (if enabled) the expanding ring pulse, at the current cursor point.
     private func startClickMonitorIfNeeded() {
         guard clickMonitor == nil else { return }
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self, self.haloActive else { return }
-                self.setHaloScaleTarget(event.type == .leftMouseDown ? Self.haloPressScale : 1.0)
+                if Settings.shared.clickPulseEnabled {
+                    self.setHaloScaleTarget(event.type == .leftMouseDown ? Self.haloPressScale : 1.0)
+                    if event.type == .leftMouseDown {
+                        self.spawnClickPulseIfEnabled(at: self.cursorPoint)
+                    }
+                }
             }
         }
     }
@@ -376,36 +382,13 @@ final class DrawingCanvasView: NSView {
         guard active != haloActive else { return }
         haloActive = active
         if active {
-            ensureCursorHidden()
             syncCursorToGlobalMouse()
         } else {
-            ensureCursorShown()
             isDragging = false
             previewLayer = nil
             laserTrail.removeAll()
         }
         needsDisplay = true
-    }
-
-    /// Net number of unbalanced `CGDisplayHideCursor` calls we've made, so we can show exactly
-    /// as many times to restore. (`CGDisplayHideCursor` is reference-counted; `CGCursorIsVisible`
-    /// is unavailable on modern macOS, so we track our own contribution.)
-    private var cursorHideCount = 0
-
-    /// Hide the system cursor (the halo replaces it). When the overlay is transparent the app
-    /// underneath re-shows its own cursor on each move, decrementing the shared count — so we
-    /// re-assert the hide per move (see `syncCursorToGlobalMouse`), which nets out near 0/1.
-    private func ensureCursorHidden() {
-        CGDisplayHideCursor(CGMainDisplayID())
-        cursorHideCount += 1
-    }
-
-    /// Undo exactly our hides so the system cursor comes back.
-    private func ensureCursorShown() {
-        while cursorHideCount > 0 {
-            CGDisplayShowCursor(CGMainDisplayID())
-            cursorHideCount -= 1
-        }
     }
 
     /// Read the current global mouse position and convert it into this view's coordinates.
@@ -417,9 +400,6 @@ final class DrawingCanvasView: NSView {
             cursorPoint = local
             cursorInside = inside
             needsDisplay = true
-            // Re-assert the hide on movement: while transparent (pinned passthrough) the app
-            // underneath re-shows its own cursor as the mouse moves, so we hide it again.
-            if haloActive { ensureCursorHidden() }
         }
     }
 
@@ -455,7 +435,6 @@ final class DrawingCanvasView: NSView {
             timedLayers.removeAll()
             laserTrail.removeAll()
             haloActive = false
-            ensureCursorShown()
         }
     }
 
@@ -518,16 +497,11 @@ final class DrawingCanvasView: NSView {
             NSGraphicsContext.current?.cgContext.setBlendMode(.normal)
         }
 
-        // 5. Halo / dungeon portal + laser trail — only while the halo is active and the cursor
+        // 5. Halo + laser trail — only while the halo is active and the cursor
         // is over this display. In a pinned session the halo stays on (a persistent pointer)
         // even while the window passes clicks/scroll through.
         if cursorInside && haloActive {
-            if Settings.shared.dungeonModeEnabled {
-                drawDungeonPortal(in: context)
-                drawDungeonCursor(in: context)
-            } else {
-                drawHalo(in: context)
-            }
+            drawHalo(in: context)
             drawLaserTrail(in: context)
         }
 
@@ -552,9 +526,8 @@ final class DrawingCanvasView: NSView {
         )
     }
 
-    /// Stateless infill painter shared by the regular halo and Dungeon mode's
-    /// portal: solid soft alpha disk, a thick light-alpha band hugging the inner
-    /// edge of the ring, or nothing at all.
+    /// Stateless infill painter: solid soft alpha disk, a thick light-alpha
+    /// band hugging the inner edge of the ring, or nothing at all.
     static func drawHaloInfill(
         in context: CGContext,
         rect: CGRect,
@@ -600,13 +573,18 @@ final class DrawingCanvasView: NSView {
                             color: color, style: infillStyle)
 
         if outerRingEnabled {
-            // Soft outer glow sitting just outside the colored ring.
+            // Outer glow — a tighter, brighter halo hugging the ring. Two stroked
+            // passes through a shadow stack each other up so it reads as a real
+            // light bloom rather than a diffuse haze.
             if glowEnabled {
                 context.saveGState()
-                context.setShadow(offset: .zero, blur: max(8, radius * 0.6),
-                                  color: color.withAlphaComponent(0.9).cgColor)
-                context.setStrokeColor(color.withAlphaComponent(0.95).cgColor)
+                let glowBlur = max(5, radius * 0.5)
+                context.setShadow(offset: .zero, blur: glowBlur,
+                                  color: color.withAlphaComponent(0.8).cgColor)
+                context.setStrokeColor(color.cgColor)
                 context.setLineWidth(2.5)
+                context.strokeEllipse(in: rect)
+                // Second pass intensifies the glow without widening it.
                 context.strokeEllipse(in: rect)
                 context.restoreGState()
             }
@@ -902,103 +880,12 @@ final class DrawingCanvasView: NSView {
             let t = CGFloat(min(1.0, max(0.0, (now - pulse.startTime) / Self.pulseDuration)))
             let eased = 1.0 - pow(1.0 - t, 3.0) // easeOutCubic
             let radius = startRadius + (endRadius - startRadius) * eased
-            let alpha = (1.0 - t) * 0.85
+            let alpha = (1.0 - t) * 0.55
             let rect = CGRect(x: pulse.origin.x - radius, y: pulse.origin.y - radius,
                               width: radius * 2, height: radius * 2)
             context.setStrokeColor(pulse.color.withAlphaComponent(alpha).cgColor)
             context.setLineWidth(2.5)
             context.strokeEllipse(in: rect)
-        }
-        context.restoreGState()
-    }
-
-    // MARK: - Dungeon Mode
-
-    /// Cached pixel-art gauntlet image from the asset catalog.
-    private static let dungeonCursorImage: CGImage? = {
-        guard let ns = NSImage(named: "DungeonCursor") else { return nil }
-        var rect = NSRect(origin: .zero, size: ns.size)
-        return ns.cgImage(forProposedRect: &rect, context: nil, hints: nil)
-    }()
-
-    /// Draws the gauntlet pixel cursor at the current cursor point. The image's
-    /// fingertips point up-left, so we anchor the hot spot there (top-left of
-    /// the visible glove cluster).
-    private func drawDungeonCursor(in context: CGContext) {
-        guard let img = Self.dungeonCursorImage else { return }
-        // Render at roughly the system cursor size regardless of the source
-        // PNG's native resolution (the SweezyCursors asset ships at 128×128).
-        let targetHeight: CGFloat = 28
-        let scale = targetHeight / CGFloat(img.height)
-        let w = CGFloat(img.width) * scale
-        let h = CGFloat(img.height) * scale
-        // Hot spot at the index-finger tip, roughly upper-left of the image.
-        let rect = CGRect(x: cursorPoint.x - w * 0.15,
-                          y: cursorPoint.y - h * 0.85,
-                          width: w, height: h)
-        context.saveGState()
-        context.interpolationQuality = .none // keep pixels crispy
-        context.draw(img, in: rect)
-        context.restoreGState()
-    }
-
-    /// Procedural flaming portal where the halo would normally be. Animates
-    /// with the existing cursor-tracking timer's repaints. Honors the user's
-    /// color choice and the halo infill setting so dungeon mode composes with
-    /// the rest of the cursor styling.
-    private func drawDungeonPortal(in context: CGContext) {
-        let radius = max(28, Settings.shared.haloSize * 1.1)
-        let now = ProcessInfo.processInfo.systemUptime
-        let phase = CGFloat(now.truncatingRemainder(dividingBy: 6.0)) / 6.0
-        let rayCount = 56
-        let center = cursorPoint
-        let rect = CGRect(x: center.x - radius, y: center.y - radius,
-                          width: radius * 2, height: radius * 2)
-
-        // Derive hot (lighter, inner) and cool (darker, outer wash) tints from
-        // the user's chosen color so dungeon mode follows the active palette.
-        let base = Settings.shared.resolvedNSColor
-        let hot  = base.blended(withFraction: 0.55, of: .white) ?? base
-        let cool = base.blended(withFraction: 0.35, of: .black) ?? base
-
-        // Infill under the rays — same options the regular halo supports.
-        Self.drawHaloInfill(in: context, rect: rect, radius: radius,
-                            color: base, style: Settings.shared.haloInfillStyle)
-
-        // Outer soft glow ring so the portal "lives" against any background.
-        context.saveGState()
-        context.setShadow(offset: .zero, blur: radius * 0.9,
-                          color: base.withAlphaComponent(0.6).cgColor)
-        context.setStrokeColor(base.withAlphaComponent(0.9).cgColor)
-        context.setLineWidth(2)
-        context.strokeEllipse(in: rect)
-        context.restoreGState()
-
-        // Flame rays radiating outward, color-tinted to the chosen palette.
-        context.saveGState()
-        for i in 0..<rayCount {
-            let angle = (CGFloat(i) / CGFloat(rayCount)) * .pi * 2 + phase * .pi * 2
-            let flicker = 0.5 + 0.5 * sin(CGFloat(now) * 5 + CGFloat(i) * 1.7)
-            let len = radius * (0.275 + 0.45 * flicker)
-            let inner = radius * 0.92
-            let outer = radius + len
-            let p1 = CGPoint(x: center.x + cos(angle) * inner,
-                             y: center.y + sin(angle) * inner)
-            let p2 = CGPoint(x: center.x + cos(angle) * outer,
-                             y: center.y + sin(angle) * outer)
-            let path = CGMutablePath()
-            path.move(to: p1)
-            path.addLine(to: p2)
-            // Outer cool wash first (so the bright hot core sits on top).
-            context.addPath(path)
-            context.setLineCap(.round)
-            context.setLineWidth(4.5)
-            context.setStrokeColor(cool.withAlphaComponent(0.35).cgColor)
-            context.strokePath()
-            context.addPath(path)
-            context.setLineWidth(2.2)
-            context.setStrokeColor(hot.withAlphaComponent(0.85).cgColor)
-            context.strokePath()
         }
         context.restoreGState()
     }

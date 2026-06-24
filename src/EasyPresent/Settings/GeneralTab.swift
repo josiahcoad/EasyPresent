@@ -64,7 +64,6 @@ struct GeneralTab: View {
 
     @AppStorage(Settings.Keys.holdModifier) private var holdModifierRaw: String = ActivationModifier.option.rawValue
     @AppStorage(Settings.Keys.toggleHotkeyKeyCode) private var toggleKeyCode: Int = Int(kVK_Space)
-    @AppStorage(Settings.Keys.disableInTextFields) private var disableInTextFields: Bool = false
     @AppStorage(Settings.Keys.autoDisappearSeconds) private var autoDisappearSeconds: Double = 0
 
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
@@ -79,19 +78,6 @@ struct GeneralTab: View {
 
     private var holdModifierBinding: Binding<ActivationModifier> {
         Binding(get: { holdModifier }, set: { holdModifierRaw = $0.rawValue })
-    }
-
-    /// Turning this on prompts for Accessibility (needed to detect a focused text field).
-    private var disableInTextFieldsBinding: Binding<Bool> {
-        Binding(
-            get: { disableInTextFields },
-            set: { newValue in
-                disableInTextFields = newValue
-                if newValue {
-                    (NSApp.delegate as? AppDelegate)?.requestTextFieldAccessibility()
-                }
-            }
-        )
     }
 
     var body: some View {
@@ -111,8 +97,7 @@ struct GeneralTab: View {
             }
 
             Section("Shortcuts") {
-                gestureRow("Highlight",        [.key(sym)])
-                gestureRow("Toggle", toggleTokens)
+                gestureRow("Toggle highlight", toggleTokens)
                 gestureRow("Draw",             [.key(sym), .text("+ drag")])
                 gestureRow("Box",              [.key(sym), .key("⌘"), .text("+ drag")])
                 gestureRow("Arrow",            [.key(sym), .key("⇧"), .text("+ drag")])
@@ -122,25 +107,21 @@ struct GeneralTab: View {
                 gestureRow("Auto-clear time",  [.key(sym), .key("0–9")])
                 gestureRow("Help",             [.key("⌥"), .key("?")])
                 gestureRow("Preferences",      [.key("⌥"), .key(",")])
-                gestureRow("Exit",             [.text("Release"), .key(sym), .text("/")] + toggleTokens)
             }
 
             Section("Behavior") {
                 Toggle("Launch at Login", isOn: launchAtLoginBinding)
+                // Tags cover the full ⌥0–9 hotkey range so any digit the user
+                // presses lands on a visible option (was missing 4/6/7/8/9 →
+                // the popup rendered blank when one of those was set).
                 Picker(selection: $autoDisappearSeconds) {
                     Text("Off").tag(0.0)
-                    Text("1 second").tag(1.0)
-                    Text("2 seconds").tag(2.0)
-                    Text("3 seconds").tag(3.0)
-                    Text("5 seconds").tag(5.0)
-                    Text("10 seconds").tag(10.0)
+                    ForEach(1...9, id: \.self) { n in
+                        Text("\(n) second\(n == 1 ? "" : "s")").tag(Double(n))
+                    }
                 } label: {
                     labelWithInfo("Auto-clear drawings",
-                                  "Notations fade out after you draw them.")
-                }
-                Toggle(isOn: disableInTextFieldsBinding) {
-                    labelWithInfo("Don't activate in text fields",
-                                  "Less distracting while using \(sym)←/→ word-jumping in text fields. Needs Accessibility permissions.")
+                                  "Notations fade out after you draw them. Set instantly with \(sym)0–9.")
                 }
                 Button("Restart onboarding") {
                     OnboardingCoordinator.shared.restart()

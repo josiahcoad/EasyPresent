@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -65,35 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         startOptionPoll()
 
-        // Accessibility is only needed for the optional "don't activate in text fields"
-        // behavior, which is off by default. We prompt for it when the user turns that
-        // setting on (see AppDelegate.requestTextFieldAccessibility / GeneralTab), not at launch.
-
         OnboardingCoordinator.shared.startIfFirstRun()
-    }
-
-    /// Prompt for Accessibility, which powers the optional "don't activate in text fields"
-    /// behavior. Called when the user turns that setting on. Safe to call repeatedly.
-    func requestTextFieldAccessibility() {
-        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(opts)
-    }
-
-    /// True if the system-wide focused UI element is an editable text control.
-    /// Requires Accessibility permission; returns false (don't skip) without it.
-    private func isEditingTextField() -> Bool {
-        guard AXIsProcessTrusted() else { return false }
-        let system = AXUIElementCreateSystemWide()
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused else { return false }
-        let element = focused as! AXUIElement
-        var roleValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
-              let role = roleValue as? String else { return false }
-        return role == (kAXTextFieldRole as String)
-            || role == (kAXTextAreaRole as String)
-            || role == (kAXComboBoxRole as String)
     }
 
     // MARK: - Option-hold activation
@@ -565,12 +536,12 @@ final class OnboardingCoordinator {
         if helpVisible {
             return """
             EasyPresent Shortcuts
-            \(mod):  highlight
             \(toggle):  toggle highlight
             \(mod) + drag:  draw
             \(mod)⌘ + drag:  box
             \(mod)⇧ + drag:  arrow
-            \(mod)E / \(mod)Z:  clear screen / undo
+            \(mod)E:  clear screen
+            \(mod)Z:  undo
             \(mod)↑ / \(mod)↓:  cycle color
             \(mod)0–9:  auto-clear shapes (seconds)
             """

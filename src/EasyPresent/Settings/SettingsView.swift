@@ -83,14 +83,13 @@ struct AppearanceTab: View {
     @AppStorage(Settings.Keys.color) private var colorRaw: String = PenColor.orange.rawValue
     @AppStorage(Settings.Keys.laserEnabled) private var laserEnabled: Bool = false
     @AppStorage(Settings.Keys.haloCenterStyle) private var centerRaw: String = HaloCenterStyle.dot.rawValue
-    @AppStorage(Settings.Keys.haloSize) private var haloSize: Double = 32
+    @AppStorage(Settings.Keys.haloSize) private var haloSize: Double = 36
     @AppStorage(Settings.Keys.haloOuterRingEnabled) private var outerRing: Bool = true
     @AppStorage(Settings.Keys.haloContrastEnabled) private var contrastEnabled: Bool = true
-    @AppStorage(Settings.Keys.haloGlowEnabled) private var glowEnabled: Bool = false
-    @AppStorage(Settings.Keys.haloInfillStyle) private var infillRaw: String = HaloInfillStyle.filled.rawValue
-    @AppStorage(Settings.Keys.clickPulseEnabled) private var clickPulseEnabled: Bool = false
+    @AppStorage(Settings.Keys.haloGlowEnabled) private var glowEnabled: Bool = true
+    @AppStorage(Settings.Keys.haloInfillStyle) private var infillRaw: String = HaloInfillStyle.border.rawValue
+    @AppStorage(Settings.Keys.clickPulseEnabled) private var clickPulseEnabled: Bool = true
     @AppStorage(Settings.Keys.customColorHex) private var customColorHex: String = ""
-    @AppStorage(Settings.Keys.dungeonModeEnabled) private var dungeonModeEnabled: Bool = false
 
     private var presetColor: PenColor { PenColor(rawValue: colorRaw) ?? .red }
     private var hasCustomColor: Bool { !customColorHex.isEmpty && NSColor(hexString: customColorHex) != nil }
@@ -119,7 +118,7 @@ struct AppearanceTab: View {
         Binding(get: { HaloInfillStyle(rawValue: infillRaw) ?? .filled }, set: { infillRaw = $0.rawValue })
     }
 
-    static let haloSizeSteps: [Double] = [24, 32, 48, 64]
+    static let haloSizeSteps: [Double] = [28, 36, 42, 56]
     static let haloSizeLabels: [String] = ["S", "M", "L", "XL"]
 
     private var currentHaloSizeIndex: Int {
@@ -215,20 +214,6 @@ struct AppearanceTab: View {
             Section("Effects") {
                 Toggle("Trailing laser", isOn: $laserEnabled)
                 Toggle("Animate clicks", isOn: $clickPulseEnabled)
-            }
-
-            Section {
-                Toggle("Dungeon mode 🗡️", isOn: $dungeonModeEnabled)
-                .onChange(of: dungeonModeEnabled) { _, isOn in
-                    if isOn {
-                        // Default the most thematic combination, but let users
-                        // tweak afterwards — the rays + infill honor whatever
-                        // color and infill style they pick.
-                        colorRaw = PenColor.orange.rawValue
-                        customColorHex = ""
-                        infillRaw = HaloInfillStyle.none.rawValue
-                    }
-                }
             }
         }
         .formStyle(.grouped)
