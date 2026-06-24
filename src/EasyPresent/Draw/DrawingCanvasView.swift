@@ -60,9 +60,6 @@ final class DrawingCanvasView: NSView {
     /// per screen, only the canvas under the cursor paints the halo/laser.
     private var cursorInside = false
 
-    /// Whether the system cursor is currently hidden (balanced hide/unhide).
-    private var didHideCursor = false
-
     /// Whether the halo (and hidden system cursor) is active. Decoupled from mouse capture:
     /// in a pinned session the halo stays on as a presenter pointer even while the window is
     /// transparent to the mouse (so clicks/scroll still pass through). While off we draw no
@@ -339,21 +336,36 @@ final class DrawingCanvasView: NSView {
         guard active != haloActive else { return }
         haloActive = active
         if active {
-            if !didHideCursor {
-                CGDisplayHideCursor(CGMainDisplayID())
-                didHideCursor = true
-            }
+            ensureCursorHidden()
             syncCursorToGlobalMouse()
         } else {
-            if didHideCursor {
-                CGDisplayShowCursor(CGMainDisplayID())
-                didHideCursor = false
-            }
+            ensureCursorShown()
             isDragging = false
             previewLayer = nil
             laserTrail.removeAll()
         }
         needsDisplay = true
+    }
+
+    /// Net number of unbalanced `CGDisplayHideCursor` calls we've made, so we can show exactly
+    /// as many times to restore. (`CGDisplayHideCursor` is reference-counted; `CGCursorIsVisible`
+    /// is unavailable on modern macOS, so we track our own contribution.)
+    private var cursorHideCount = 0
+
+    /// Hide the system cursor (the halo replaces it). When the overlay is transparent the app
+    /// underneath re-shows its own cursor on each move, decrementing the shared count — so we
+    /// re-assert the hide per move (see `syncCursorToGlobalMouse`), which nets out near 0/1.
+    private func ensureCursorHidden() {
+        CGDisplayHideCursor(CGMainDisplayID())
+        cursorHideCount += 1
+    }
+
+    /// Undo exactly our hides so the system cursor comes back.
+    private func ensureCursorShown() {
+        while cursorHideCount > 0 {
+            CGDisplayShowCursor(CGMainDisplayID())
+            cursorHideCount -= 1
+        }
     }
 
     /// Read the current global mouse position and convert it into this view's coordinates.
@@ -365,6 +377,9 @@ final class DrawingCanvasView: NSView {
             cursorPoint = local
             cursorInside = inside
             needsDisplay = true
+            // Re-assert the hide on movement: while transparent (pinned passthrough) the app
+            // underneath re-shows its own cursor as the mouse moves, so we hide it again.
+            if haloActive { ensureCursorHidden() }
         }
     }
 
@@ -394,10 +409,8 @@ final class DrawingCanvasView: NSView {
             timedShapes.removeAll()
             timedLayers.removeAll()
             laserTrail.removeAll()
-            if didHideCursor {
-                CGDisplayShowCursor(CGMainDisplayID())
-                didHideCursor = false
-            }
+            haloActive = false
+            ensureCursorShown()
         }
     }
 

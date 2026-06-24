@@ -457,7 +457,7 @@ private final class HintContentView: NSView {
 final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
-    private enum Step { case holdToEnter, drawBox, cycleColor, drawArrow, releaseToClear, pin, unpin, tryHelp, openSettings, done }
+    private enum Step { case holdToEnter, drawBox, cycleColor, drawArrow, releaseToClear, pin, drawPinned, exitPinned, tryHelp, openSettings, done }
 
     private var step: Step = .done
     private var active = false
@@ -500,6 +500,7 @@ final class OnboardingCoordinator {
         if active {
             if step == .drawBox, type == .rectangle { step = .cycleColor }
             else if step == .drawArrow, type == .arrow { step = .releaseToClear }
+            else if step == .drawPinned { step = .exitPinned }  // drew again while pinned
         }
         refresh()
     }
@@ -517,7 +518,7 @@ final class OnboardingCoordinator {
 
     func pinned() {
         isPinned = true
-        if active, step == .pin { step = .unpin }
+        if active, step == .pin { step = .drawPinned }
         refresh()
     }
 
@@ -535,7 +536,7 @@ final class OnboardingCoordinator {
         inDrawMode = false
         if active {
             if step == .releaseToClear, !wasPinned { step = .pin }
-            else if step == .unpin, wasPinned { step = .tryHelp; isPinned = false; refresh(); return }
+            else if step == .exitPinned, wasPinned { step = .tryHelp; isPinned = false; refresh(); return }
         }
         isPinned = false
         refresh()
@@ -599,7 +600,8 @@ final class OnboardingCoordinator {
             case .cycleColor:     return "Press \(mod)↑ / \(mod)↓ to change color"
             case .releaseToClear: return "Let go of \(mod) — your drawing clears"
             case .pin:            return "Hold \(mod) again, then \(toggle) to keep your drawings on screen"
-            case .unpin:          return "Now you can click & scroll under them. \(toggle) again to clear & exit"
+            case .drawPinned:     return "Now shapes stick. Draw one again using \(mod)"
+            case .exitPinned:     return "Press \(toggle) to clear & exit"
             case .tryHelp:        return "Press ⌥? any time to see this help"
             case .openSettings:   return "Press \(mod), to open Settings"
             case .done:           return nil
