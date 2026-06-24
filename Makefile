@@ -7,18 +7,36 @@ RELEASE_APP  = $(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app
 ENTITLEMENTS = $(CURDIR)/src/EasyPresent/Resources/EasyPresent-Release.entitlements
 VERSION     ?= 0.0.0
 
+# Stable self-signed code-signing identity. Unlike ad-hoc ("-"), a fixed cert keeps the
+# same code "designated requirement" across rebuilds, so the macOS Accessibility grant
+# (click-through / scroll-through) survives reinstalls and updates. Create it once via
+# Keychain Access → Certificate Assistant → Create a Certificate (type: Code Signing),
+# Common Name exactly "EasyPresent Self-Signed". Override with SIGN_IDENTITY=- for ad-hoc.
+SIGN_IDENTITY ?= EasyPresent Self-Signed
+
 # Load secrets from .env (if present)
 -include .env
 export
 
 .PHONY: build test run dev release clean generate notarize dmg release-dmg
 
-# Quick dev loop: ad-hoc build → install to /Applications → launch. No Apple cert needed.
+# Quick dev loop: build → install to /Applications → launch. Signs with the stable
+# self-signed identity if present (so Accessibility persists), else falls back to ad-hoc.
 dev:
+	@IDENTITY="$(SIGN_IDENTITY)"; \
+	if [ "$$IDENTITY" != "-" ] && ! security find-identity -p codesigning | grep -q "$$IDENTITY"; then \
+		echo "⚠️  Code-signing identity '$$IDENTITY' not found — falling back to ad-hoc."; \
+		echo "    Create it once: Keychain Access → Certificate Assistant → Create a Certificate"; \
+		echo "    (type 'Code Signing', name 'EasyPresent Self-Signed'). Until then the"; \
+		echo "    Accessibility grant resets on every rebuild."; \
+		IDENTITY="-"; \
+	fi; \
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug -derivedDataPath $(BUILD_DIR) \
-		CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" build
+		CODE_SIGN_IDENTITY="$$IDENTITY" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
+		ENABLE_HARDENED_RUNTIME=NO build
 	@osascript -e 'tell application "$(APP_NAME)" to quit' 2>/dev/null || true
-	@pkill -x $(APP_NAME) 2>/dev/null || true
+	@pkill -9 -x $(APP_NAME) 2>/dev/null || true
+	@while pgrep -x $(APP_NAME) >/dev/null 2>&1; do sleep 0.2; done  # ensure no stale instance lingers
 	rm -rf /Applications/$(APP_NAME).app
 	cp -R $(BUILD_DIR)/Build/Products/Debug/$(APP_NAME).app /Applications/
 	open /Applications/$(APP_NAME).app

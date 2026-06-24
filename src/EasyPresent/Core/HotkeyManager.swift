@@ -24,12 +24,27 @@ final class HotkeyManager: @unchecked Sendable {
     var onColorNext: (() -> Void)?
     var onColorPrev: (() -> Void)?
 
+    /// Erase (clear the canvas) / undo, active only while drawing. Always ⌥E / ⌥Z — the
+    /// overlay only draws while ⌥ is held, so the modifier is always down for these.
+    var onErase: (() -> Void)?
+    var onUndo: (() -> Void)?
+
+    /// ⌥0–⌥9 (active only while drawing): set the auto-disappear timeout to N seconds
+    /// (0 = off). The argument is the digit.
+    var onSetAutoDisappear: ((Int) -> Void)?
+
     private var drawToggleHotKeyRef: EventHotKeyRef?
     private var helpHotKeyRef: EventHotKeyRef?
     private var prefsHotKeyRef: EventHotKeyRef?
     private var colorNextHotKeyRef: EventHotKeyRef?
     private var colorPrevHotKeyRef: EventHotKeyRef?
+    private var eraseHotKeyRef: EventHotKeyRef?
+    private var undoHotKeyRef: EventHotKeyRef?
+    private var numberHotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 10)
     private var eventHandlerRef: EventHandlerRef?
+
+    /// Tracks whether the draw-only shortcuts are registered so `reregisterHotkeys()` can restore them.
+    private var drawShortcutsActive = false
 
     /// Signature used to identify our hot-key events ('ZmIt')
     private let hotKeySignature: OSType = 0x5A6D_4974 // 'ZmIt'
@@ -39,6 +54,9 @@ final class HotkeyManager: @unchecked Sendable {
     private let prefsHotKeyID: UInt32 = 6
     private let colorNextHotKeyID: UInt32 = 7
     private let colorPrevHotKeyID: UInt32 = 8
+    private let eraseHotKeyID: UInt32 = 9
+    private let undoHotKeyID: UInt32 = 10
+    private let numberHotKeyIDBase: UInt32 = 30  // ⌥0..⌥9 → IDs 30..39
 
     private init() {}
 
@@ -151,17 +169,23 @@ final class HotkeyManager: @unchecked Sendable {
 
     /// Re-register all hotkeys with current Settings values.
     func reregisterHotkeys() {
-        let cycling = colorNextHotKeyRef != nil
+        let active = drawShortcutsActive
         stop()
-        disableColorCycling()
+        disableDrawShortcuts()
         start()
-        if cycling { enableColorCycling() }
+        if active { enableDrawShortcuts() }
     }
 
-    /// Register <hold modifier>+Up / +Down for color cycling. Only active while drawing,
-    /// so normal Option+Arrow paragraph navigation is unaffected the rest of the time.
-    func enableColorCycling() {
-        guard colorNextHotKeyRef == nil else { return }
+    /// Register the keys that are live only while a draw session is open. They all use the
+    /// hold modifier (⌥), so they only fire while the user is actively drawing and never
+    /// shadow normal typing the rest of the time:
+    ///  • color cycling — ⌥↑ / ⌥↓
+    ///  • erase / undo  — ⌥E / ⌥Z
+    ///  • auto-disappear — ⌥0…⌥9 (0 = off, N = N seconds)
+    func enableDrawShortcuts() {
+        disableDrawShortcuts()
+        drawShortcutsActive = true
+
         let mod = Settings.shared.holdModifier.carbonFlag
         RegisterEventHotKey(UInt32(kVK_UpArrow), mod,
                             EventHotKeyID(signature: hotKeySignature, id: colorNextHotKeyID),
@@ -169,11 +193,32 @@ final class HotkeyManager: @unchecked Sendable {
         RegisterEventHotKey(UInt32(kVK_DownArrow), mod,
                             EventHotKeyID(signature: hotKeySignature, id: colorPrevHotKeyID),
                             GetApplicationEventTarget(), 0, &colorPrevHotKeyRef)
+        RegisterEventHotKey(UInt32(kVK_ANSI_E), mod,
+                            EventHotKeyID(signature: hotKeySignature, id: eraseHotKeyID),
+                            GetApplicationEventTarget(), 0, &eraseHotKeyRef)
+        RegisterEventHotKey(UInt32(kVK_ANSI_Z), mod,
+                            EventHotKeyID(signature: hotKeySignature, id: undoHotKeyID),
+                            GetApplicationEventTarget(), 0, &undoHotKeyRef)
+        let numberKeyCodes: [Int] = [
+            kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4,
+            kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9
+        ]
+        for digit in 0...9 {
+            RegisterEventHotKey(UInt32(numberKeyCodes[digit]), mod,
+                                EventHotKeyID(signature: hotKeySignature, id: numberHotKeyIDBase + UInt32(digit)),
+                                GetApplicationEventTarget(), 0, &numberHotKeyRefs[digit])
+        }
     }
 
-    func disableColorCycling() {
+    func disableDrawShortcuts() {
+        drawShortcutsActive = false
         if let r = colorNextHotKeyRef { UnregisterEventHotKey(r); colorNextHotKeyRef = nil }
         if let r = colorPrevHotKeyRef { UnregisterEventHotKey(r); colorPrevHotKeyRef = nil }
+        if let r = eraseHotKeyRef { UnregisterEventHotKey(r); eraseHotKeyRef = nil }
+        if let r = undoHotKeyRef { UnregisterEventHotKey(r); undoHotKeyRef = nil }
+        for i in numberHotKeyRefs.indices {
+            if let r = numberHotKeyRefs[i] { UnregisterEventHotKey(r); numberHotKeyRefs[i] = nil }
+        }
     }
 
     // MARK: - Event Processing
@@ -219,6 +264,22 @@ final class HotkeyManager: @unchecked Sendable {
             guard pressed else { return }
             DispatchQueue.main.async { [weak self] in
                 self?.onColorPrev?()
+            }
+        } else if hotKeyID.id == eraseHotKeyID {
+            guard pressed else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.onErase?()
+            }
+        } else if hotKeyID.id == undoHotKeyID {
+            guard pressed else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.onUndo?()
+            }
+        } else if hotKeyID.id >= numberHotKeyIDBase && hotKeyID.id < numberHotKeyIDBase + 10 {
+            guard pressed else { return }
+            let digit = Int(hotKeyID.id - numberHotKeyIDBase)
+            DispatchQueue.main.async { [weak self] in
+                self?.onSetAutoDisappear?(digit)
             }
         }
     }

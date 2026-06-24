@@ -122,6 +122,7 @@ final class Settings: @unchecked Sendable {
         static let toggleHotkeyKeyCode = "toggleHotkeyKeyCode"
         static let toggleHotkeyModifiers = "toggleHotkeyModifiers"
         static let disableInTextFields = "drawDisableInTextFields"
+        static let autoDisappearSeconds = "drawAutoDisappearSeconds"
 
         // Stats (local usage counters)
         static let statsArrows = "statsArrowsDrawn"
@@ -176,6 +177,7 @@ final class Settings: @unchecked Sendable {
             Keys.toggleHotkeyKeyCode: Int(kVK_Space),
             Keys.toggleHotkeyModifiers: Int(optionKey),
             Keys.disableInTextFields: false,
+            Keys.autoDisappearSeconds: 0.0,
 
             // Text
             Keys.defaultFontSize: 24.0,
@@ -275,6 +277,13 @@ final class Settings: @unchecked Sendable {
     var disableInTextFields: Bool {
         get { defaults.bool(forKey: Keys.disableInTextFields) }
         set { defaults.set(newValue, forKey: Keys.disableInTextFields) }
+    }
+
+    /// When > 0, each drawn box/arrow fades away this many seconds after it's drawn.
+    /// 0 means shapes persist until the draw session ends (the default).
+    var autoDisappearSeconds: Double {
+        get { defaults.double(forKey: Keys.autoDisappearSeconds) }
+        set { defaults.set(newValue, forKey: Keys.autoDisappearSeconds) }
     }
 
     /// The single user-chosen color, shared by the halo/crosshair, laser, and shapes.

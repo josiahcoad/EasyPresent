@@ -11,6 +11,7 @@ struct GeneralTab: View {
     @AppStorage(Settings.Keys.toggleHotkeyKeyCode) private var toggleKeyCode: Int = Int(kVK_Space)
     @AppStorage(Settings.Keys.toggleHotkeyModifiers) private var toggleModifiers: Int = Int(optionKey)
     @AppStorage(Settings.Keys.disableInTextFields) private var disableInTextFields: Bool = false
+    @AppStorage(Settings.Keys.autoDisappearSeconds) private var autoDisappearSeconds: Double = 0
 
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
 
@@ -74,6 +75,17 @@ struct GeneralTab: View {
                     }
                 }
                 Toggle("Trailing laser", isOn: $laserEnabled)
+                Picker("Auto-clear shapes", selection: $autoDisappearSeconds) {
+                    Text("Off").tag(0.0)
+                    Text("1 second").tag(1.0)
+                    Text("2 seconds").tag(2.0)
+                    Text("3 seconds").tag(3.0)
+                    Text("5 seconds").tag(5.0)
+                    Text("10 seconds").tag(10.0)
+                }
+                Text("In toggled draw mode, boxes and arrows fade out this long after you draw them.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Gestures") {
@@ -81,9 +93,12 @@ struct GeneralTab: View {
                 gestureRow("Arrow", "\(sym)⇧ + drag")
                 gestureRow("Toggle", toggleStr)
                 gestureRow("Cycle color", "\(sym)↑ / \(sym)↓")
+                gestureRow("Erase all", "\(sym)E")
+                gestureRow("Undo", "\(sym)Z")
+                gestureRow("Auto-clear time", "\(sym)0–9")
                 gestureRow("Help", "⌥?")
                 gestureRow("Preferences", "⌥,")
-                gestureRow("Exit", "Release \(sym)")
+                gestureRow("Exit", "Release \(sym) / \(toggleStr)")
             }
 
             Section {

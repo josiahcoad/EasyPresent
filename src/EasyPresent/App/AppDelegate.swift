@@ -52,6 +52,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager.onColorPrev = { [weak self] in
             self?.cycleColor(forward: false)
         }
+        hotkeyManager.onErase = { [weak self] in
+            self?.overlayController?.eraseAll()
+        }
+        hotkeyManager.onUndo = { [weak self] in
+            self?.overlayController?.undo()
+        }
+        hotkeyManager.onSetAutoDisappear = { [weak self] seconds in
+            self?.setAutoDisappear(seconds: seconds)
+        }
         hotkeyManager.start()
 
         startOptionPoll()
@@ -105,16 +114,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         defer { wasOptionDown = down }
 
         if down, !wasOptionDown {
-            // Press edge: enter spring Draw mode if nothing else is on screen and the
-            // user isn't typing in a text field (so ⌥-shortcuts like ⌥←/→ still work).
-            guard noModeActive else { return }
-            if Settings.shared.disableInTextFields, isEditingTextField() { return }
-            presentDrawMode(backgroundImage: nil, springLoaded: true)
+            // Press edge: make the overlay interactive (capture the mouse to draw + show the
+            // halo). For a pinned session that's already up, just re-arm interactivity; with
+            // nothing on screen, present a fresh spring session (already interactive).
+            if let controller = overlayController {
+                controller.setInteractive(true)
+            } else if noModeActive {
+                if Settings.shared.disableInTextFields, isEditingTextField() { return }
+                presentDrawMode(backgroundImage: nil, springLoaded: true)
+            }
         } else if !down, wasOptionDown {
-            // Release edge: exit only an unpinned (still spring-loaded) session.
-            if let controller = overlayController, controller.isSpringLoaded {
-                controller.dismiss()
-                overlayController = nil
+            // Release edge: a spring (hold) session ends; a pinned session stays up but goes
+            // transparent so clicks/scroll/keys pass through to the app below.
+            if let controller = overlayController {
+                if controller.isSpringLoaded {
+                    controller.dismiss()
+                    overlayController = nil
+                } else {
+                    controller.setInteractive(false)
+                }
             }
         }
     }
@@ -129,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleDrawToggleHotkey() {
         if let controller = overlayController {
             if controller.isSpringLoaded {
-                controller.pinOpen()          // pin the active hold → sticky
+                controller.pinOpen()          // pin the active hold → sticky (annotations persist)
                 OnboardingCoordinator.shared.pinned()
             } else {
                 zoomSourceForDrawReturn = nil  // already sticky → toggle off
@@ -179,7 +197,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         controller.showOverlay()
         overlayController = controller
-        hotkeyManager.enableColorCycling()
+        controller.setInteractive(true)  // presented because ⌥ is held → capture immediately
+        hotkeyManager.enableDrawShortcuts()
         OnboardingCoordinator.shared.drawModeEntered()
     }
 
@@ -192,10 +211,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OnboardingCoordinator.shared.colorCycled()
     }
 
+    /// ⌥0–⌥9 while drawing sets the auto-disappear timeout (0 = off). Only meaningful in a
+    /// toggled (pinned) session — in a hold session everything clears on ⌥ release anyway.
+    private func setAutoDisappear(seconds: Int) {
+        guard let controller = overlayController, !controller.isSpringLoaded else { return }
+        Settings.shared.autoDisappearSeconds = Double(seconds)
+        let message = seconds == 0
+            ? "Auto-disappear off"
+            : "Shapes disappear in \(seconds) second\(seconds == 1 ? "" : "s")"
+        OnboardingCoordinator.shared.flashMessage(message)
+    }
+
     /// Called from OverlayWindowController when the user exits draw mode (Escape / right-click)
     func drawModeDidEnd() {
         overlayController = nil
-        hotkeyManager.disableColorCycling()
+        hotkeyManager.disableDrawShortcuts()
         OnboardingCoordinator.shared.drawModeExited()
         if let savedImage = zoomSourceForDrawReturn {
             zoomSourceForDrawReturn = nil
@@ -425,7 +455,7 @@ private final class HintContentView: NSView {
 final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
-    private enum Step { case holdToEnter, drawBox, drawArrow, cycleColor, releaseToClear, pin, unpin, tryHelp, openSettings, done }
+    private enum Step { case holdToEnter, drawBox, cycleColor, drawArrow, releaseToClear, pin, unpin, tryHelp, openSettings, done }
 
     private var step: Step = .done
     private var active = false
@@ -466,15 +496,15 @@ final class OnboardingCoordinator {
 
     func recordShape(_ type: ShapeType) {
         if active {
-            if step == .drawBox, type == .rectangle { step = .drawArrow }
-            else if step == .drawArrow, type == .arrow { step = .cycleColor }
+            if step == .drawBox, type == .rectangle { step = .cycleColor }
+            else if step == .drawArrow, type == .arrow { step = .releaseToClear }
         }
         refresh()
     }
 
     /// The draw color was cycled with ⌥↑ / ⌥↓.
     func colorCycled() {
-        if active, step == .cycleColor { step = .releaseToClear }
+        if active, step == .cycleColor { step = .drawArrow }
         refresh()
     }
 
@@ -516,6 +546,12 @@ final class OnboardingCoordinator {
         helpVisible = false
         Settings.shared.onboardingCompleted = true
         showTimedMessage("Congrats — you know how to use EasyPresent 🎉", duration: 3.5)
+    }
+
+    /// Briefly flash a transient message in the hint panel — used for hotkey feedback like
+    /// "Shapes disappear in 3 seconds". Restores the prior hint/onboarding state afterward.
+    func flashMessage(_ text: String, duration: TimeInterval = 1.6) {
+        showTimedMessage(text, duration: duration)
     }
 
     // MARK: Rendering

@@ -35,9 +35,18 @@ final class OverlayWindow: NSPanel {
         isReleasedWhenClosed = false
         animationBehavior = .none  // appear instantly — no system fade/slide-in
         acceptsMouseMovedEvents = true
-        ignoresMouseEvents = false
+        // Transparent to the mouse by default: clicks/scroll pass straight through to the app
+        // below (no event injection, no Accessibility). The overlay only captures the mouse
+        // while the activation modifier is held — see `setInteractive`.
+        ignoresMouseEvents = true
         hidesOnDeactivate = false
         keyable = !nonactivating
+    }
+
+    /// Capture the mouse (draw) when `true`; be transparent to it (pass clicks/scroll through
+    /// to the app underneath) when `false`. Driven by whether the activation modifier is held.
+    func setInteractive(_ interactive: Bool) {
+        ignoresMouseEvents = !interactive
     }
 
     /// Promote a previously non-activating overlay to key-capable (used when a spring

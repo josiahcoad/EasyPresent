@@ -32,11 +32,41 @@ jobs:
       - name: Generate Xcode project
         run: brew install xcodegen && (cd src && xcodegen generate)
 
-      - name: Build (Release, ad-hoc signed)
+      # Import the stable self-signed cert (if configured) so releases share one code
+      # "designated requirement" — that keeps users' Accessibility grant (click-through /
+      # scroll-through) across updates. Without the secret, falls back to ad-hoc.
+      - name: Set up code signing
+        id: signing
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          if [ -z "$MACOS_CERT_P12" ]; then
+            echo "No MACOS_CERT_P12 secret — building ad-hoc (Accessibility grant resets on each update)."
+            echo "identity=-" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PW="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          # Make the new keychain searchable for codesign alongside the existing ones.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
+          HASH="$(security find-identity -p codesigning "$KEYCHAIN" | grep 'EasyPresent Self-Signed' | head -1 | awk '{print $2}')"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          if [ -z "$HASH" ]; then echo "cert imported but identity not found"; exit 1; fi
+          echo "identity=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Build (Release)
         run: |
           xcodebuild -project src/EasyPresent.xcodeproj -scheme EasyPresent -configuration Release \
             -derivedDataPath build-release \
-            CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" CODE_SIGN_ENTITLEMENTS="" \
+            CODE_SIGN_IDENTITY="${{ steps.signing.outputs.identity }}" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" CODE_SIGN_ENTITLEMENTS="" \
+            ENABLE_HARDENED_RUNTIME=NO \
             build
 
       - name: Package DMG

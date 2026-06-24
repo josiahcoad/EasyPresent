@@ -43,29 +43,48 @@ the GitHub release, and bumps the Homebrew cask in `josiahcoad/homebrew-tap`. Se
 | **Models/Utils** | `src/EasyPresent/Models/`, `Utilities/` | `Settings`, `DrawingState`, `ActivationModifier`, extensions |
 
 ### Activation model (key design)
-- A ~33 Hz timer in `AppDelegate.pollOption` reads `NSEvent.modifierFlags` for the configured
-  hold modifier. Press edge → present a **spring** (non-activating) Draw overlay; release edge
-  → dismiss. No global event monitors, no Accessibility.
-- `OverlayWindow` is a borderless `NSPanel`; **spring/hold mode is `.nonactivatingPanel` and
-  never becomes key**, so keyboard focus (⌥←/→ etc.) stays with the foreground app. Pinning
-  (⌥Space → `pinOpen()`) promotes it to key so Esc/⌘Z work in that dedicated session.
+- **Transparent-by-default overlay.** `OverlayWindow` starts `ignoresMouseEvents = true`, so
+  clicks/scroll/keys pass through to the app below **natively** — no event injection, no
+  Accessibility. It captures the mouse (draws) **only while the hold modifier is held**.
+- A ~33 Hz timer in `AppDelegate.pollOption` reads `NSEvent.modifierFlags`. Press edge →
+  present a spring overlay (or, for a pinned session already up, `setInteractive(true)`);
+  release edge → dismiss a hold session, or `setInteractive(false)` a pinned one (back to
+  transparent). `OverlayWindow.setInteractive` flips `ignoresMouseEvents`.
+- **Halo vs. capture are decoupled.** `OverlayWindowController.setInteractive` toggles window
+  capture with the modifier, but the canvas halo (`DrawingCanvasView.setHaloActive`) stays on
+  for a **pinned** session even while transparent — so the halo reads as a persistent presenter
+  pointer while clicks/scroll still pass through. The halo position comes from a 120 Hz
+  global-mouse timer (works regardless of mouse capture).
+- `OverlayWindow` is a borderless `.nonactivatingPanel` that never becomes key, so keyboard
+  focus (⌥←/→, typing, Space, arrows) always stays with the foreground app. Pinning (⌥Space →
+  `pinOpen()`) just persists the window + strokes; you still hold ⌥ to draw.
 - One overlay **per display** (macOS "Displays have separate Spaces" blocks a single window
   from spanning screens); each canvas paints only while the cursor is over it.
 
 ## Critical patterns
 
 - **Entry point**: explicit `main.swift` with `NSApp.run()`. Do NOT add `@main`.
-- **Hotkeys**: Carbon `RegisterEventHotKey` only (no `CGEventTap` → no Accessibility). IDs:
-  drawToggle=4 (⌥Space), help=5 (⌥/, press+release for hold-to-show), prefs=6 (⌥,),
-  colorNext=7 (⌥↑) / colorPrev=8 (⌥↓). Color-cycle keys are registered **only while a draw
-  session is active** (`enableColorCycling()` on enter, `disableColorCycling()` on exit) so
-  normal ⌥+Arrow paragraph navigation is untouched the rest of the time.
+- **Hotkeys**: Carbon `RegisterEventHotKey` only (no `CGEventTap` → no Accessibility). Always
+  on: drawToggle=4 (⌥Space), help=5 (⌥/, press+release for hold-to-show), prefs=6 (⌥,).
+  Registered **only while a draw session is active** (`enableDrawShortcuts()` on enter,
+  `disableDrawShortcuts()` on exit) so they don't shadow normal use: colorNext=7 (⌥↑) /
+  colorPrev=8 (⌥↓), erase=9 (⌥E), undo=10 (⌥Z), and ⌥0–⌥9 (IDs 30–39) for the auto-disappear
+  timeout. All use the hold modifier, so they only fire while the user is actively drawing.
 - **LSUIElement / Info.plist**: `Info.plist` has `LSUIElement=true` (no Dock icon). `project.yml`
   references it via `INFOPLIST_FILE:` only — do NOT add xcodegen's `info:` directive; it
   overwrites the manual plist and strips required keys (`LSUIElement`, `NSPrincipalClass`).
-- **Signing**: `project.yml` keeps `Manual` / `DEVELOPMENT_TEAM: T74PC5F324`; local + release
-  builds override to ad-hoc (`CODE_SIGN_IDENTITY="-"`). The app needs no TCC permissions, so
-  ad-hoc is fine; each ad-hoc rebuild changes identity (matters only if you re-add notarization).
+- **Signing**: `project.yml` keeps `Manual` / `DEVELOPMENT_TEAM: T74PC5F324`; `make dev`,
+  `release.sh`, and CI override to a **stable self-signed cert** (`SIGN_IDENTITY`, default
+  `EasyPresent Self-Signed`), falling back to ad-hoc (`"-"`) if it's absent, and force
+  `ENABLE_HARDENED_RUNTIME=NO` (project.yml has it on for the notarize path; hardened runtime
+  + the Debug `.debug.dylib` + a non-Team identity trips library-validation and crashes at
+  launch). The stable cert is now **cosmetic** — since the transparent-by-default redesign
+  the app needs no Accessibility, so the cert only affects Gatekeeper/identity stability, not
+  function. CI imports it from `MACOS_CERT_P12` / `MACOS_CERT_PASSWORD` (see `dist/RELEASE.md`).
+- **Permissions**: the app needs **none** for any feature — click/scroll/keyboard pass-through
+  is native (transparent window), drawing is local. The only optional Accessibility use left is
+  the off-by-default "don't activate in text fields" entry guard (`disableInTextFields`), which
+  degrades gracefully without it.
 - **Cursor**: hidden via `CGDisplayHideCursor` (works for the background overlay); the halo +
   crosshair replace it. Balance hide/show in `viewDidMoveToWindow` / `viewWillMove(toWindow:nil)`.
 - **Concurrency**: `@MainActor` on UI classes; `HotkeyManager` is `@unchecked Sendable` and
