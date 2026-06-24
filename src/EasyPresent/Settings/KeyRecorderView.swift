@@ -186,3 +186,150 @@ class KeyRecorderNSView: NSView {
         (displayText as NSString).draw(at: textOrigin, withAttributes: attrs)
     }
 }
+
+// MARK: - BaseKeyRecorderView
+//
+// Records ONLY the character portion of a base-key+character toggle. The base
+// key (the user's chosen hold modifier) is implicit and always held with this
+// character to fire the hotkey. We require the base modifier to be physically
+// held during recording so the meaning of the binding is reinforced.
+
+struct BaseKeyRecorderView: NSViewRepresentable {
+    @Binding var keyCode: Int
+    let baseModifier: ActivationModifier
+
+    func makeNSView(context: Context) -> BaseKeyRecorderNSView {
+        let view = BaseKeyRecorderNSView()
+        view.keyCode = UInt32(keyCode)
+        view.baseModifier = baseModifier
+        view.onKeyRecorded = { newKeyCode in keyCode = Int(newKeyCode) }
+        return view
+    }
+
+    func updateNSView(_ nsView: BaseKeyRecorderNSView, context: Context) {
+        nsView.keyCode = UInt32(keyCode)
+        nsView.baseModifier = baseModifier
+        if !nsView.isRecording { nsView.needsDisplay = true }
+    }
+}
+
+final class BaseKeyRecorderNSView: NSView {
+
+    var keyCode: UInt32 = 0
+    var baseModifier: ActivationModifier = .option
+    var isRecording = false
+    var onKeyRecorded: ((UInt32) -> Void)?
+
+    /// When the user presses a key WITHOUT the base modifier held, we flash a
+    /// hint so they understand the binding requires the base + the character.
+    private var showingHint = false
+
+    private var trackingArea: NSTrackingArea?
+    private var savedInputSource: TISInputSource?
+
+    override var acceptsFirstResponder: Bool { true }
+    override var intrinsicContentSize: NSSize { NSSize(width: 140, height: 28) }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea { removeTrackingArea(existing) }
+        let area = NSTrackingArea(rect: bounds,
+                                  options: [.mouseEnteredAndExited, .activeAlways],
+                                  owner: self)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        isRecording = true
+        showingHint = false
+        window?.makeFirstResponder(self)
+        HotkeyManager.shared.stop()
+        savedInputSource = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
+        if let ascii = TISCopyCurrentASCIICapableKeyboardInputSource()?.takeRetainedValue() {
+            TISSelectInputSource(ascii)
+        }
+        needsDisplay = true
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard isRecording else { return super.performKeyEquivalent(with: event) }
+        if event.keyCode == UInt16(kVK_Escape) { stopRecording(); return true }
+        if !event.modifierFlags.contains(baseModifier.flag) {
+            // Missing the base modifier — flash the hint and keep recording.
+            showingHint = true
+            needsDisplay = true
+            return true
+        }
+        keyCode = UInt32(event.keyCode)
+        stopRecording()
+        onKeyRecorded?(keyCode)
+        return true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard isRecording else { super.keyDown(with: event); return }
+        if event.keyCode == UInt16(kVK_Escape) { stopRecording(); return }
+        if !event.modifierFlags.contains(baseModifier.flag) {
+            showingHint = true
+            needsDisplay = true
+            return
+        }
+        keyCode = UInt32(event.keyCode)
+        stopRecording()
+        onKeyRecorded?(keyCode)
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        // If the user starts holding the base modifier, clear the hint.
+        if isRecording, event.modifierFlags.contains(baseModifier.flag), showingHint {
+            showingHint = false
+            needsDisplay = true
+        }
+    }
+
+    override func resignFirstResponder() -> Bool {
+        if isRecording { stopRecording() }
+        return super.resignFirstResponder()
+    }
+
+    private func stopRecording() {
+        isRecording = false
+        showingHint = false
+        if let source = savedInputSource { TISSelectInputSource(source); savedInputSource = nil }
+        HotkeyManager.shared.start()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let bounds = self.bounds
+        let bgColor: NSColor = isRecording ? .controlAccentColor.withAlphaComponent(0.15) : .controlBackgroundColor
+        bgColor.setFill()
+        let bgPath = NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6)
+        bgPath.fill()
+        let borderColor: NSColor = showingHint ? .systemOrange
+            : isRecording ? .controlAccentColor : .separatorColor
+        borderColor.setStroke()
+        bgPath.lineWidth = 1.0
+        bgPath.stroke()
+
+        let displayText: String
+        if showingHint {
+            displayText = "Hold \(baseModifier.symbol) + key…"
+        } else if isRecording {
+            displayText = "Press \(baseModifier.symbol) + key…"
+        } else {
+            displayText = "\(baseModifier.symbol)\(Settings.keyCodeToString(keyCode))"
+        }
+
+        let weight: NSFont.Weight = isRecording ? .regular : .medium
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: weight),
+            .foregroundColor: (isRecording || showingHint) ? NSColor.secondaryLabelColor : NSColor.labelColor
+        ]
+        let textSize = (displayText as NSString).size(withAttributes: attrs)
+        let origin = NSPoint(x: (bounds.width - textSize.width) / 2,
+                             y: (bounds.height - textSize.height) / 2)
+        (displayText as NSString).draw(at: origin, withAttributes: attrs)
+    }
+}

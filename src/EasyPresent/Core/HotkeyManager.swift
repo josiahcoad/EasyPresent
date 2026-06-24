@@ -93,9 +93,11 @@ final class HotkeyManager: @unchecked Sendable {
 
         // Zoom and Draw are gesture-driven (⌥ double-click / hold ⌥) — no hotkeys.
 
-        // Register the user-configurable pin/unpin toggle hotkey (default ⌥Space).
+        // Register the toggle hotkey. The modifier is always whatever the base
+        // (hold) key is set to — only the character is user-configurable, which
+        // keeps the toggle in lockstep with the rest of the shortcut surface.
         let toggleKeyCode = Settings.shared.toggleHotkeyKeyCode
-        let toggleModifiers = Settings.shared.toggleHotkeyModifiers
+        let toggleModifiers = Settings.shared.holdModifier.carbonFlag
         let drawToggleKeyID = EventHotKeyID(signature: hotKeySignature, id: drawToggleHotKeyID)
         let drawToggleStatus = RegisterEventHotKey(
             toggleKeyCode,

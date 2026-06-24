@@ -513,7 +513,7 @@ final class OnboardingCoordinator {
 
     /// The draw color was cycled with ⌥↑ / ⌥↓.
     func colorCycled() {
-        if active, step == .cycleColor { step = .drawArrow }
+        if active, step == .cycleColor { step = .releaseToClear }
         refresh()
     }
 
@@ -595,7 +595,7 @@ final class OnboardingCoordinator {
             \(mod) + drag:  draw
             \(mod)⌘ + drag:  box
             \(mod)⇧ + drag:  arrow
-            \(mod)E / \(mod)Z:  erase / undo
+            \(mod)E / \(mod)Z:  clear screen / undo
             \(mod)↑ / \(mod)↓:  cycle color
             \(mod)0–9:  auto-clear shapes (seconds)
             """

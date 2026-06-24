@@ -389,9 +389,11 @@ final class Settings: @unchecked Sendable {
         set { defaults.set(Int(newValue), forKey: Keys.toggleHotkeyModifiers) }
     }
 
-    /// Display string for the toggle hotkey, e.g. "⌥Space".
+    /// Display string for the toggle hotkey, e.g. "⌥Space". The modifier is always
+    /// the base (hold) key — only the character is independently configurable.
     var toggleDisplayString: String {
-        Settings.hotkeyDisplayString(keyCode: toggleHotkeyKeyCode, modifiers: toggleHotkeyModifiers)
+        Settings.hotkeyDisplayString(keyCode: toggleHotkeyKeyCode,
+                                     modifiers: holdModifier.carbonFlag)
     }
 
     var holdModifier: ActivationModifier {

@@ -532,6 +532,33 @@ final class DrawingCanvasView: NSView {
         )
     }
 
+    /// Stateless infill painter shared by the regular halo and Dungeon mode's
+    /// portal: solid soft alpha disk, a thick light-alpha band hugging the inner
+    /// edge of the ring, or nothing at all.
+    static func drawHaloInfill(
+        in context: CGContext,
+        rect: CGRect,
+        radius: CGFloat,
+        color: NSColor,
+        style: HaloInfillStyle
+    ) {
+        switch style {
+        case .filled:
+            context.setFillColor(color.withAlphaComponent(0.18).cgColor)
+            context.fillEllipse(in: rect)
+        case .border:
+            let bandWidth = max(2, radius * 0.225)
+            let inset = bandWidth / 2
+            context.saveGState()
+            context.setStrokeColor(color.withAlphaComponent(0.25).cgColor)
+            context.setLineWidth(bandWidth)
+            context.strokeEllipse(in: rect.insetBy(dx: inset, dy: inset))
+            context.restoreGState()
+        case .none:
+            break
+        }
+    }
+
     /// Stateless halo renderer shared by the live overlay and the Settings preview.
     static func drawHalo(
         in context: CGContext,
@@ -549,23 +576,8 @@ final class DrawingCanvasView: NSView {
         let rect = CGRect(x: point.x - radius, y: point.y - radius,
                           width: radius * 2, height: radius * 2)
 
-        // Infill — independent of the outer ring.
-        switch infillStyle {
-        case .filled:
-            context.setFillColor(color.withAlphaComponent(0.18).cgColor)
-            context.fillEllipse(in: rect)
-        case .border:
-            // Thick semi-transparent band hugging the inside of the ring radius.
-            let bandWidth = max(2, radius * 0.225)
-            let inset = bandWidth / 2
-            context.saveGState()
-            context.setStrokeColor(color.withAlphaComponent(0.25).cgColor)
-            context.setLineWidth(bandWidth)
-            context.strokeEllipse(in: rect.insetBy(dx: inset, dy: inset))
-            context.restoreGState()
-        case .none:
-            break
-        }
+        Self.drawHaloInfill(in: context, rect: rect, radius: radius,
+                            color: color, style: infillStyle)
 
         if outerRingEnabled {
             // Soft outer glow sitting just outside the colored ring.
@@ -696,13 +708,13 @@ final class DrawingCanvasView: NSView {
     override func mouseMoved(with event: NSEvent) {
         guard !isDragging else { return }
         // The halo follows every move. The laser trail is sampled when it's enabled in
-        // Settings, OR transiently while ⇧ Shift is held (without dragging) — a quick
-        // "laser on demand" gesture for presenters who keep the trail off by default.
+        // Settings. (Upstream had a transient "hold ⇧ for laser" gesture, but it now
+        // collides with ⌥⇧ + drag = arrow — the trail would appear as the user moved
+        // the mouse before mouse-down. Rely on the Settings toggle only.)
         cursorInside = true
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
-        let laserActive = Settings.shared.laserEnabled || event.modifierFlags.contains(.shift)
-        if laserActive {
+        if Settings.shared.laserEnabled {
             let now = ProcessInfo.processInfo.systemUptime
             if now - appearTime >= Self.laserStartupGrace {
                 appendLaserSamples(to: point, time: now)
@@ -863,7 +875,11 @@ final class DrawingCanvasView: NSView {
         let endRadius = startRadius * 2.5
         context.saveGState()
         for pulse in clickPulses {
-            let t = min(1.0, max(0.0, (now - pulse.startTime) / Self.pulseDuration))
+            // Keep all the animation math in CGFloat so it composes cleanly with
+            // startRadius/endRadius below (CGFloat is Double on 64-bit, so this
+            // currently compiles, but the explicit conversion guards against the
+            // mixed-type breakage if CGFloat ever becomes Float in some build).
+            let t = CGFloat(min(1.0, max(0.0, (now - pulse.startTime) / Self.pulseDuration)))
             let eased = 1.0 - pow(1.0 - t, 3.0) // easeOutCubic
             let radius = startRadius + (endRadius - startRadius) * eased
             let alpha = (1.0 - t) * 0.85
@@ -926,21 +942,8 @@ final class DrawingCanvasView: NSView {
         let cool = base.blended(withFraction: 0.35, of: .black) ?? base
 
         // Infill under the rays — same options the regular halo supports.
-        switch Settings.shared.haloInfillStyle {
-        case .filled:
-            context.setFillColor(base.withAlphaComponent(0.18).cgColor)
-            context.fillEllipse(in: rect)
-        case .border:
-            let bandWidth = max(2, radius * 0.225)
-            let inset = bandWidth / 2
-            context.saveGState()
-            context.setStrokeColor(base.withAlphaComponent(0.25).cgColor)
-            context.setLineWidth(bandWidth)
-            context.strokeEllipse(in: rect.insetBy(dx: inset, dy: inset))
-            context.restoreGState()
-        case .none:
-            break
-        }
+        Self.drawHaloInfill(in: context, rect: rect, radius: radius,
+                            color: base, style: Settings.shared.haloInfillStyle)
 
         // Outer soft glow ring so the portal "lives" against any background.
         context.saveGState()
@@ -996,8 +999,12 @@ final class DrawingCanvasView: NSView {
         previewLayer = nil
         activeFreehand = nil
         freehandPoints = [point]
-        spawnClickPulseIfEnabled(at: point)
-        setHaloScaleTarget(Self.haloPressScale)  // compress while the button is held
+        // Both click feedback animations (the expanding ring pulse + the halo
+        // press-compress) are gated by the same "Animate clicks" setting.
+        if Settings.shared.clickPulseEnabled {
+            spawnClickPulseIfEnabled(at: point)
+            setHaloScaleTarget(Self.haloPressScale)
+        }
     }
 
     /// Ease the halo toward `target`, running a short animation timer until it settles.
@@ -1093,12 +1100,14 @@ final class DrawingCanvasView: NSView {
         setNeedsDisplay(bounds)
     }
 
-    /// The stroked path for a dragged box/arrow (tip at the cursor for arrows).
+    /// The stroked path for a finished drag (box / arrow / freehand).
     private func shapePath(shapeType: ShapeType, endPoint: CGPoint) -> CGPath {
         switch shapeType {
         case .arrow:
             return ShapeRenderer.arrowPath(from: endPoint, to: dragOrigin,
                                            penWidth: drawingState.penWidth).cgPath
+        case .freehand:
+            return FreehandRenderer.smoothedPath(from: freehandPoints).cgPath
         default:
             return ShapeRenderer.rectanglePath(from: dragOrigin, to: endPoint).cgPath
         }
