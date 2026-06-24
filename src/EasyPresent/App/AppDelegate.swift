@@ -197,7 +197,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         controller.showOverlay()
         overlayController = controller
-        controller.setInteractive(true)  // presented because ⌥ is held → capture immediately
+        // Capture the mouse only if we should be drawing right now — either we're
+        // mid-⌥-hold (spring or pinned-via-hotkey), or the base modifier is currently
+        // held. A menu-bar "Draw" click with no modifier opens the pinned overlay in
+        // its transparent state so clicks still reach the app below until ⌥ is held.
+        let baseHeld = NSEvent.modifierFlags.contains(Settings.shared.holdModifier.flag)
+        controller.setInteractive(springLoaded || baseHeld)
         hotkeyManager.enableDrawShortcuts()
         OnboardingCoordinator.shared.drawModeEntered()
     }

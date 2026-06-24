@@ -63,10 +63,19 @@ final class StatusBarController: NSObject {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        // Draw (hold ⌥) is gesture-driven — no shortcut label.
-        let drawItem = NSMenuItem(title: "Draw", action: #selector(drawAction), keyEquivalent: "")
-        drawItem.target = self
-        menu.addItem(drawItem)
+        // Toggle highlight — same action as the user's configurable toggle hotkey
+        // (base + recorded key, e.g. ⌥Space). Show the shortcut on the right.
+        let toggleKeyCode = Settings.shared.toggleHotkeyKeyCode
+        let toggleItem = NSMenuItem(
+            title: "Toggle highlight",
+            action: #selector(toggleAction),
+            keyEquivalent: Self.menuKeyEquivalent(for: toggleKeyCode)
+        )
+        toggleItem.keyEquivalentModifierMask = Settings.carbonToNSEventModifiers(
+            Settings.shared.holdModifier.carbonFlag
+        )
+        toggleItem.target = self
+        menu.addItem(toggleItem)
 
         menu.addItem(.separator())
 
@@ -91,8 +100,25 @@ final class StatusBarController: NSObject {
 
     // MARK: - Actions
 
-    @objc private func drawAction() {
-        HotkeyManager.shared.onDrawHotkey?()
+    @objc private func toggleAction() {
+        HotkeyManager.shared.onDrawToggleHotkey?()
+    }
+
+    /// Convert a Carbon key code to the single-character form `NSMenuItem`
+    /// expects for its `keyEquivalent`. Special keys (Space, arrows, return)
+    /// need their unicode/whitespace character, not the display label.
+    private static func menuKeyEquivalent(for keyCode: UInt32) -> String {
+        switch Int(keyCode) {
+        case kVK_Space:      return " "
+        case kVK_Return:     return "\r"
+        case kVK_Tab:        return "\t"
+        case kVK_Escape:     return "\u{1b}"
+        case kVK_LeftArrow:  return String(UnicodeScalar(0xF702)!)
+        case kVK_RightArrow: return String(UnicodeScalar(0xF703)!)
+        case kVK_UpArrow:    return String(UnicodeScalar(0xF700)!)
+        case kVK_DownArrow:  return String(UnicodeScalar(0xF701)!)
+        default:             return Settings.keyCodeToMenuCharacter(keyCode)
+        }
     }
 
     @objc private func preferencesAction() {
