@@ -17,6 +17,30 @@ builds + publishes the release and just skips the cask bump. To rotate: generate
 `gh repo deploy-key add key.pub --repo josiahcoad/homebrew-tap --allow-write`, then
 `gh secret set TAP_DEPLOY_KEY --repo josiahcoad/EasyPresent < key`.
 
+## Code signing (stable identity for Accessibility)
+
+Click-through and scroll-through need macOS **Accessibility**, which the system ties to the
+app's code "designated requirement." Ad-hoc signing changes that requirement on every build,
+so the grant would reset on each update. To avoid that, builds sign with a **stable
+self-signed cert** named **`EasyPresent Self-Signed`** (no Apple Developer account / $99
+needed; it does not silence Gatekeeper, but the cask already strips quarantine).
+
+**One-time local setup:** Keychain Access → *Certificate Assistant → Create a Certificate…*
+→ Name `EasyPresent Self-Signed`, Identity Type *Self Signed Root*, Certificate Type
+*Code Signing* → Create. After switching from ad-hoc to this cert, grant Accessibility once
+more (the requirement changed); it then persists across rebuilds. `make dev`, `release.sh`,
+and CI all auto-fall back to ad-hoc if the cert/secret is absent.
+
+**CI setup (so released updates keep the grant):** export the same cert as a `.p12` and add
+two repo secrets to `josiahcoad/EasyPresent`:
+```bash
+# In Keychain Access: right-click "EasyPresent Self-Signed" → Export → .p12 (set a password)
+base64 -i EasyPresent-Self-Signed.p12 | gh secret set MACOS_CERT_P12 --repo josiahcoad/EasyPresent
+gh secret set MACOS_CERT_PASSWORD --repo josiahcoad/EasyPresent   # paste the .p12 password
+```
+CI imports it into a temporary keychain and signs the release with it. Use the **same** cert
+locally and in CI so every build shares one requirement.
+
 ## Local one-liner (fallback)
 
 ```bash

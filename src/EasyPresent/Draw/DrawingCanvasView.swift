@@ -60,8 +60,11 @@ final class DrawingCanvasView: NSView {
     /// per screen, only the canvas under the cursor paints the halo/laser.
     private var cursorInside = false
 
-    /// Whether the system cursor is currently hidden (balanced hide/unhide).
-    private var didHideCursor = false
+    /// Whether the halo (and hidden system cursor) is active. Decoupled from mouse capture:
+    /// in a pinned session the halo stays on as a presenter pointer even while the window is
+    /// transparent to the mouse (so clicks/scroll still pass through). While off we draw no
+    /// halo and leave the system cursor visible.
+    private var haloActive = false
 
     // MARK: - Laser Pointer (transient cursor trail)
 
@@ -109,6 +112,44 @@ final class DrawingCanvasView: NSView {
 
     /// How long (seconds) a trail point takes to fully fade out.
     private static let laserFadeDuration: TimeInterval = 0.5
+
+    // MARK: - Click Feedback (halo "compress")
+
+    /// Size multiplier for the halo + crosshair. Rests at 1.0 and eases toward
+    /// `haloScaleTarget`: while the mouse button is held the target is `haloPressScale`
+    /// (compressed), and on release it returns to 1.0 — a tactile press-and-hold feel.
+    private var haloScale: CGFloat = 1.0
+    private var haloScaleTarget: CGFloat = 1.0
+    private var haloPressTimer: Timer?
+
+    /// How small the halo gets while the button is held, and the per-tick easing factor
+    /// of the approach toward the target (higher = snappier).
+    private static let haloPressScale: CGFloat = 0.62
+    private static let haloScaleEasing: CGFloat = 0.30
+
+    // MARK: - Auto-disappearing shapes
+
+    /// A drawn shape that fades out on its own after `life` seconds (used when the
+    /// "auto-disappear" setting is on, instead of compositing into `finishedLayer`).
+    private struct TimedShape {
+        let path: CGPath
+        let color: NSColor
+        let penWidth: CGFloat
+        let drawnAt: TimeInterval
+        let life: TimeInterval
+    }
+    private var timedShapes: [TimedShape] = []
+
+    /// A snapshot of previously-permanent strokes (the whole `finishedLayer`) that now fades
+    /// as one unit — created when the user sets an auto-disappear timeout while shapes are
+    /// already on screen.
+    private struct TimedLayer {
+        let image: CGImage
+        let drawnAt: TimeInterval
+        let life: TimeInterval
+    }
+    private var timedLayers: [TimedLayer] = []
+    private var autoDisappearTimer: Timer?
 
     // MARK: - Text Mode
 
@@ -300,19 +341,53 @@ final class DrawingCanvasView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard window != nil else { return }
-        if !didHideCursor {
-            // CGDisplayHideCursor works window-server-wide, so it hides the system
-            // cursor even though our overlay is a non-activating (background) panel.
-            CGDisplayHideCursor(CGMainDisplayID())
-            didHideCursor = true
-        }
+        // The cursor is hidden + halo shown only while interactive (see setHaloActive). Start
+        // tracking now so the halo is correctly placed the instant we become interactive. A
+        // one-shot seed isn't enough: AppKit can reposition the window just after it appears.
         appearTime = ProcessInfo.processInfo.systemUptime
         laserTrail.removeAll()
-        // Pin the halo to the cursor continuously. A one-shot seed isn't enough: the
-        // window can still be repositioned by AppKit just after it appears, which would
-        // leave the halo drawn at stale window-local coordinates until the first move.
         syncCursorToGlobalMouse()
         startCursorTrackingIfNeeded()
+    }
+
+    /// Show/hide the halo (and hide/restore the system cursor with it). Independent of mouse
+    /// capture: a pinned session keeps this on so the halo remains a visible pointer even
+    /// while the window passes clicks/scroll through. `OverlayWindow.setInteractive` handles
+    /// the actual mouse-capture toggle.
+    func setHaloActive(_ active: Bool) {
+        guard active != haloActive else { return }
+        haloActive = active
+        if active {
+            ensureCursorHidden()
+            syncCursorToGlobalMouse()
+        } else {
+            ensureCursorShown()
+            isDragging = false
+            previewLayer = nil
+            laserTrail.removeAll()
+        }
+        needsDisplay = true
+    }
+
+    /// Net number of unbalanced `CGDisplayHideCursor` calls we've made, so we can show exactly
+    /// as many times to restore. (`CGDisplayHideCursor` is reference-counted; `CGCursorIsVisible`
+    /// is unavailable on modern macOS, so we track our own contribution.)
+    private var cursorHideCount = 0
+
+    /// Hide the system cursor (the halo replaces it). When the overlay is transparent the app
+    /// underneath re-shows its own cursor on each move, decrementing the shared count — so we
+    /// re-assert the hide per move (see `syncCursorToGlobalMouse`), which nets out near 0/1.
+    private func ensureCursorHidden() {
+        CGDisplayHideCursor(CGMainDisplayID())
+        cursorHideCount += 1
+    }
+
+    /// Undo exactly our hides so the system cursor comes back.
+    private func ensureCursorShown() {
+        while cursorHideCount > 0 {
+            CGDisplayShowCursor(CGMainDisplayID())
+            cursorHideCount -= 1
+        }
     }
 
     /// Read the current global mouse position and convert it into this view's coordinates.
@@ -324,6 +399,9 @@ final class DrawingCanvasView: NSView {
             cursorPoint = local
             cursorInside = inside
             needsDisplay = true
+            // Re-assert the hide on movement: while transparent (pinned passthrough) the app
+            // underneath re-shows its own cursor as the mouse moves, so we hide it again.
+            if haloActive { ensureCursorHidden() }
         }
     }
 
@@ -347,11 +425,17 @@ final class DrawingCanvasView: NSView {
             pulseTimer?.invalidate()
             pulseTimer = nil
             clickPulses.removeAll()
+            haloPressTimer?.invalidate()
+            haloPressTimer = nil
+            haloScale = 1.0
+            haloScaleTarget = 1.0
+            autoDisappearTimer?.invalidate()
+            autoDisappearTimer = nil
+            timedShapes.removeAll()
+            timedLayers.removeAll()
             laserTrail.removeAll()
-            if didHideCursor {
-                CGDisplayShowCursor(CGMainDisplayID())
-                didHideCursor = false
-            }
+            haloActive = false
+            ensureCursorShown()
         }
     }
 
@@ -375,6 +459,11 @@ final class DrawingCanvasView: NSView {
         if let finished = finishedLayer {
             context.draw(finished, in: bounds)
         }
+
+        // 2.5 Auto-disappearing content (fades out + removes itself on a timer): first the
+        // snapshot of formerly-permanent strokes, then individually-timed shapes on top.
+        drawTimedLayers(in: context)
+        drawTimedShapes(in: context)
 
         // 3. Draw previewLayer (shape being dragged)
         if let preview = previewLayer {
@@ -409,8 +498,10 @@ final class DrawingCanvasView: NSView {
             NSGraphicsContext.current?.cgContext.setBlendMode(.normal)
         }
 
-        // 5. Halo ring + laser trail — only on the display the cursor is currently over.
-        if cursorInside {
+        // 5. Halo / dungeon portal + laser trail — only while the halo is active and the cursor
+        // is over this display. In a pinned session the halo stays on (a persistent pointer)
+        // even while the window passes clicks/scroll through.
+        if cursorInside && haloActive {
             if Settings.shared.dungeonModeEnabled {
                 drawDungeonPortal(in: context)
                 drawDungeonCursor(in: context)
@@ -425,13 +516,14 @@ final class DrawingCanvasView: NSView {
         drawClickPulses(in: context)
     }
 
-    /// A soft glowing ring centered on the cursor so the audience can find the pointer.
+    /// A glowing customizable ring centered on the cursor so the audience can follow the
+    /// pointer. `haloScale` (1.0 at rest, ~0.62 while pressing) gives press feedback.
     private func drawHalo(in context: CGContext) {
         Self.drawHalo(
             in: context,
             at: cursorPoint,
             color: Settings.shared.resolvedNSColor,
-            radius: Settings.shared.haloSize,
+            radius: Settings.shared.haloSize * haloScale,
             outerRingEnabled: Settings.shared.haloOuterRingEnabled,
             centerStyle: Settings.shared.haloCenterStyle,
             contrastEnabled: Settings.shared.haloContrastEnabled,
@@ -531,6 +623,47 @@ final class DrawingCanvasView: NSView {
         context.restoreGState()
     }
 
+    /// Fade fraction for an auto-disappearing item with the given age/life (1 until the last
+    /// 0.5 s — or 35% of a short life — then linear to 0).
+    private func fadeAlpha(age: TimeInterval, life: TimeInterval) -> CGFloat {
+        let remaining = life - age
+        guard remaining > 0 else { return 0 }
+        let fadeWindow = min(0.5, life * 0.35)
+        return fadeWindow > 0 ? min(1.0, CGFloat(remaining / fadeWindow)) : 1.0
+    }
+
+    /// Draw each fading snapshot layer (formerly-permanent strokes) under the timed shapes.
+    private func drawTimedLayers(in context: CGContext) {
+        guard !timedLayers.isEmpty else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        for layer in timedLayers {
+            let alpha = fadeAlpha(age: now - layer.drawnAt, life: layer.life)
+            guard alpha > 0 else { continue }
+            context.saveGState()
+            context.setAlpha(alpha)
+            context.draw(layer.image, in: bounds)
+            context.restoreGState()
+        }
+    }
+
+    /// Stroke each auto-disappearing shape, fading it out over the tail end of its life.
+    private func drawTimedShapes(in context: CGContext) {
+        guard !timedShapes.isEmpty else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        context.saveGState()
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        for shape in timedShapes {
+            let alpha = fadeAlpha(age: now - shape.drawnAt, life: shape.life)
+            guard alpha > 0 else { continue }
+            context.setStrokeColor(shape.color.withAlphaComponent(alpha).cgColor)
+            context.setLineWidth(shape.penWidth)
+            context.addPath(shape.path)
+            context.strokePath()
+        }
+        context.restoreGState()
+    }
+
     private func drawBackground(in context: CGContext) {
         switch drawingState.backgroundMode {
         case .transparent:
@@ -562,11 +695,14 @@ final class DrawingCanvasView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         guard !isDragging else { return }
-        // In presenter Draw mode every move feeds the halo + laser trail (no modifier gate).
+        // The halo follows every move. The laser trail is sampled when it's enabled in
+        // Settings, OR transiently while ⇧ Shift is held (without dragging) — a quick
+        // "laser on demand" gesture for presenters who keep the trail off by default.
         cursorInside = true
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
-        if Settings.shared.laserEnabled {
+        let laserActive = Settings.shared.laserEnabled || event.modifierFlags.contains(.shift)
+        if laserActive {
             let now = ProcessInfo.processInfo.systemUptime
             if now - appearTime >= Self.laserStartupGrace {
                 appendLaserSamples(to: point, time: now)
@@ -844,6 +980,10 @@ final class DrawingCanvasView: NSView {
         context.restoreGState()
     }
 
+    // Scrolling needs no handling: while the overlay is transparent (the common case) scroll
+    // events reach the app below natively; while interactive (⌥ held) we simply don't capture
+    // scroll. No event injection, no Accessibility.
+
     // MARK: - Mouse Events
 
     override func mouseDown(with event: NSEvent) {
@@ -857,6 +997,26 @@ final class DrawingCanvasView: NSView {
         activeFreehand = nil
         freehandPoints = [point]
         spawnClickPulseIfEnabled(at: point)
+        setHaloScaleTarget(Self.haloPressScale)  // compress while the button is held
+    }
+
+    /// Ease the halo toward `target`, running a short animation timer until it settles.
+    /// Used to compress on mouse-down (target < 1) and pop back on mouse-up (target = 1).
+    private func setHaloScaleTarget(_ target: CGFloat) {
+        haloScaleTarget = target
+        guard haloPressTimer == nil else { return }
+        haloPressTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.haloScale += (self.haloScaleTarget - self.haloScale) * Self.haloScaleEasing
+                self.needsDisplay = true
+                if abs(self.haloScale - self.haloScaleTarget) < 0.001 {
+                    self.haloScale = self.haloScaleTarget
+                    self.haloPressTimer?.invalidate()
+                    self.haloPressTimer = nil
+                }
+            }
+        }
     }
 
     /// ⇧+drag → arrow, ⌘+drag → rectangle, otherwise freehand draw.
@@ -888,6 +1048,7 @@ final class DrawingCanvasView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        setHaloScaleTarget(1.0)  // release the compression
         guard isDragging else { return }
         isDragging = false
 
@@ -899,12 +1060,20 @@ final class DrawingCanvasView: NSView {
         let dragged = hypot(currentPoint.x - dragOrigin.x, currentPoint.y - dragOrigin.y) > 3
 
         if dragged {
-            strokeManager.pushUndoSnapshot(
-                finishedLayer,
-                backgroundMode: drawingState.backgroundMode,
-                spotlightRect: drawingState.spotlightRect
-            )
-            finishedLayer = compositeStrokeOntoFinished(shapeType: shapeType, endPoint: currentPoint)
+            let autoSecs = Settings.shared.autoDisappearSeconds
+            // Auto-disappear applies only in a toggled (pinned) session, not a hold session
+            // — a hold session already clears everything the moment you release the modifier.
+            if autoSecs > 0, !exitsOnOptionRelease {
+                addTimedShape(shapeType: shapeType, endPoint: currentPoint, life: autoSecs)
+            } else {
+                // Push current state for undo, then composite the shape into the finished layer.
+                strokeManager.pushUndoSnapshot(
+                    finishedLayer,
+                    backgroundMode: drawingState.backgroundMode,
+                    spotlightRect: drawingState.spotlightRect
+                )
+                finishedLayer = compositeStrokeOntoFinished(shapeType: shapeType, endPoint: currentPoint)
+            }
 
             switch shapeType {
             case .arrow:     Settings.shared.arrowsDrawn += 1
@@ -914,11 +1083,134 @@ final class DrawingCanvasView: NSView {
 
             OnboardingCoordinator.shared.recordShape(shapeType)
         }
+        // A plain click (no drag) needs no special handling: the overlay only captures the
+        // mouse while ⌥ is held, so to click the app below you simply release ⌥ (it's then
+        // transparent and the click lands natively).
 
         previewLayer = nil
         activeFreehand = nil
         freehandPoints.removeAll()
         setNeedsDisplay(bounds)
+    }
+
+    /// The stroked path for a dragged box/arrow (tip at the cursor for arrows).
+    private func shapePath(shapeType: ShapeType, endPoint: CGPoint) -> CGPath {
+        switch shapeType {
+        case .arrow:
+            return ShapeRenderer.arrowPath(from: endPoint, to: dragOrigin,
+                                           penWidth: drawingState.penWidth).cgPath
+        default:
+            return ShapeRenderer.rectanglePath(from: dragOrigin, to: endPoint).cgPath
+        }
+    }
+
+    /// Record a shape that will fade out and remove itself after `life` seconds.
+    private func addTimedShape(shapeType: ShapeType, endPoint: CGPoint, life: TimeInterval) {
+        timedShapes.append(TimedShape(
+            path: shapePath(shapeType: shapeType, endPoint: endPoint),
+            color: drawingState.currentNSColor,
+            penWidth: drawingState.penWidth,
+            drawnAt: ProcessInfo.processInfo.systemUptime,
+            life: life
+        ))
+        startAutoDisappearTimerIfNeeded()
+    }
+
+    /// Repaint ~60 Hz while any timed content is alive, pruning expired items. Self-stopping.
+    private func startAutoDisappearTimerIfNeeded() {
+        guard autoDisappearTimer == nil else { return }
+        autoDisappearTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let now = ProcessInfo.processInfo.systemUptime
+                self.timedShapes.removeAll { now - $0.drawnAt >= $0.life }
+                self.timedLayers.removeAll { now - $0.drawnAt >= $0.life }
+                self.needsDisplay = true
+                if self.timedShapes.isEmpty && self.timedLayers.isEmpty {
+                    self.autoDisappearTimer?.invalidate()
+                    self.autoDisappearTimer = nil
+                }
+            }
+        }
+    }
+
+    /// Apply a newly-chosen auto-disappear timeout (⌥0–9) to what's *already* on screen, so it
+    /// behaves as the user expects:
+    ///  • life > 0 — fade everything currently visible `life` seconds from now. Strokes that
+    ///    were permanent (`finishedLayer`) become a fading snapshot; already-timed items are
+    ///    re-timed to the new value.
+    ///  • life == 0 — turn auto-disappear off: bake whatever is mid-fade back to permanent.
+    /// Only acts in a pinned session (a hold session's strokes clear on ⌥ release regardless).
+    func setAutoDisappearLife(_ life: TimeInterval) {
+        guard !exitsOnOptionRelease else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if life > 0 {
+            if let layer = finishedLayer {
+                timedLayers.append(TimedLayer(image: layer, drawnAt: now, life: life))
+                finishedLayer = nil
+            }
+            timedLayers = timedLayers.map { TimedLayer(image: $0.image, drawnAt: now, life: life) }
+            timedShapes = timedShapes.map {
+                TimedShape(path: $0.path, color: $0.color, penWidth: $0.penWidth, drawnAt: now, life: life)
+            }
+            if !timedLayers.isEmpty || !timedShapes.isEmpty { startAutoDisappearTimerIfNeeded() }
+        } else {
+            bakeTimedContentIntoFinished()
+        }
+        setNeedsDisplay(bounds)
+    }
+
+    /// Composite all currently-fading content back into the permanent `finishedLayer` (used
+    /// when auto-disappear is turned off so existing shapes stop fading and stay).
+    private func bakeTimedContentIntoFinished() {
+        guard !timedLayers.isEmpty || !timedShapes.isEmpty else { return }
+        let size = bounds.size
+        guard size.width > 0, size.height > 0, let ctx = CGContext.createBitmapContext(size: size) else { return }
+        let full = CGRect(origin: .zero, size: size)
+        if let existing = finishedLayer { ctx.draw(existing, in: full) }
+        for layer in timedLayers { ctx.draw(layer.image, in: full) }
+        ctx.setLineCap(.round)
+        ctx.setLineJoin(.round)
+        for shape in timedShapes {
+            ctx.setStrokeColor(shape.color.cgColor)
+            ctx.setLineWidth(shape.penWidth)
+            ctx.addPath(shape.path)
+            ctx.strokePath()
+        }
+        finishedLayer = ctx.makeImage()
+        timedShapes.removeAll()
+        timedLayers.removeAll()
+        autoDisappearTimer?.invalidate()
+        autoDisappearTimer = nil
+    }
+
+    // MARK: - Erase / Undo (driven by draw-mode hotkeys)
+
+    /// Clear everything on the canvas (E while drawing). Undoable in persistent mode.
+    func clearCanvas() {
+        if finishedLayer != nil || drawingState.spotlightRect != nil {
+            strokeManager.pushUndoSnapshot(
+                finishedLayer,
+                backgroundMode: drawingState.backgroundMode,
+                spotlightRect: drawingState.spotlightRect
+            )
+        }
+        finishedLayer = nil
+        timedShapes.removeAll()
+        timedLayers.removeAll()
+        drawingState.spotlightRect = nil
+        setNeedsDisplay(bounds)
+    }
+
+    /// Undo the most recent shape (Z while drawing). Removes the latest auto-disappearing
+    /// shape first, otherwise steps back through the composited undo history.
+    func undo() {
+        if !timedShapes.isEmpty {
+            timedShapes.removeLast()
+            setNeedsDisplay(bounds)
+            return
+        }
+        performUndo()
     }
 
     // MARK: - Keyboard Events

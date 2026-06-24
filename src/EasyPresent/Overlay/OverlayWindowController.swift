@@ -24,23 +24,58 @@ final class OverlayWindowController {
     var isSpringLoaded: Bool { springLoaded }
 
     /// Pin a spring-loaded (hold-Option) session so it stays open after Option is released.
-    /// A pinned session is a dedicated drawing session, so we take key focus — that makes
-    /// Esc / ⌘Z work (spring/hold mode stays focus-free for ⌥ keyboard shortcuts).
+    ///
+    /// We deliberately do NOT take keyboard focus: the overlay stays a non-activating panel
+    /// so the foreground app keeps the keyboard (Space to play/advance, arrows, typing all
+    /// pass straight through). Erase / undo / exit are delivered through global hotkeys that
+    /// are live only while drawing (see `HotkeyManager.enableDrawShortcuts`).
     func pinOpen() {
         springLoaded = false
         canvasViews.forEach { $0.exitsOnOptionRelease = false }
-        overlayWindows.forEach { $0.enableKey() }
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        let target = overlayWindows.first { $0.frame.contains(NSEvent.mouseLocation) } ?? overlayWindows.first
-        if let window = target {
-            window.makeKeyAndOrderFront(nil)
-            window.makeFirstResponder(window.contentView)
-        }
+        overlayWindows.forEach { $0.orderFrontRegardless() }
+    }
+
+    /// Capture the mouse + show the halo (interactive, while ⌥ is held) or be transparent so
+    /// clicks/scroll reach the app below (while ⌥ isn't held). Forwarded to every screen's
+    /// window + canvas.
+    private(set) var isInteractive = false
+    func setInteractive(_ interactive: Bool) {
+        isInteractive = interactive
+        // Mouse capture follows the modifier exactly: held → draw, released → pass through.
+        overlayWindows.forEach { $0.setInteractive(interactive) }
+        // The halo, though, stays on for a pinned session even when not capturing — so it
+        // reads as a persistent presenter pointer while clicks/scroll pass through.
+        let haloActive = interactive || !springLoaded
+        canvasViews.forEach { $0.setHaloActive(haloActive) }
     }
 
     /// Repaint every canvas after the active draw color changed (⌥↑ / ⌥↓ cycling).
     func refreshColor() {
         canvasViews.forEach { $0.needsDisplay = true }
+    }
+
+    /// Clear all canvases (erase hotkey).
+    func eraseAll() {
+        canvasViews.forEach { $0.clearCanvas() }
+    }
+
+    /// Apply a newly-set auto-disappear timeout to shapes already on screen (⌥0–9).
+    func applyAutoDisappear(_ seconds: Double) {
+        canvasViews.forEach { $0.setAutoDisappearLife(seconds) }
+    }
+
+    /// Undo the most recent shape on the canvas under the cursor (undo hotkey).
+    func undo() {
+        canvasUnderMouse?.undo()
+    }
+
+    /// The canvas for the display currently under the mouse (falls back to the first).
+    private var canvasUnderMouse: DrawingCanvasView? {
+        let mouse = NSEvent.mouseLocation
+        if let idx = overlayWindows.firstIndex(where: { $0.frame.contains(mouse) }) {
+            return canvasViews[idx]
+        }
+        return canvasViews.first
     }
 
     // MARK: - Public
