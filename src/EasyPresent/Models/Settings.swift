@@ -181,7 +181,7 @@ final class Settings: @unchecked Sendable {
             Keys.laserEnabled: false,
             Keys.color: PenColor.orange.rawValue,
             Keys.haloCenterStyle: HaloCenterStyle.none.rawValue,
-            Keys.haloSize: 36.0,
+            Keys.haloSize: 28.0,
             Keys.haloOuterRingEnabled: true,
             Keys.haloContrastEnabled: false,
             Keys.haloGlowEnabled: true,

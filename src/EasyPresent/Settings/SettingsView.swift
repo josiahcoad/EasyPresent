@@ -83,7 +83,7 @@ struct AppearanceTab: View {
     @AppStorage(Settings.Keys.color) private var colorRaw: String = PenColor.orange.rawValue
     @AppStorage(Settings.Keys.laserEnabled) private var laserEnabled: Bool = false
     @AppStorage(Settings.Keys.haloCenterStyle) private var centerRaw: String = HaloCenterStyle.none.rawValue
-    @AppStorage(Settings.Keys.haloSize) private var haloSize: Double = 36
+    @AppStorage(Settings.Keys.haloSize) private var haloSize: Double = 28
     @AppStorage(Settings.Keys.haloOuterRingEnabled) private var outerRing: Bool = true
     @AppStorage(Settings.Keys.haloContrastEnabled) private var contrastEnabled: Bool = true
     @AppStorage(Settings.Keys.haloGlowEnabled) private var glowEnabled: Bool = true
@@ -118,7 +118,7 @@ struct AppearanceTab: View {
         Binding(get: { HaloInfillStyle(rawValue: infillRaw) ?? .filled }, set: { infillRaw = $0.rawValue })
     }
 
-    static let haloSizeSteps: [Double] = [28, 36, 42, 56]
+    static let haloSizeSteps: [Double] = [22, 28, 36, 42]
     static let haloSizeLabels: [String] = ["S", "M", "L", "XL"]
 
     private var currentHaloSizeIndex: Int {

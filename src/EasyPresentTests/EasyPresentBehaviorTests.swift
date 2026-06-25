@@ -42,17 +42,16 @@ final class EasyPresentSettingsDefaultsTests: XCTestCase {
         let d = UserDefaults.standard
         for key in [Settings.Keys.color, Settings.Keys.laserEnabled, Settings.Keys.holdModifier,
                     Settings.Keys.toggleHotkeyKeyCode, Settings.Keys.toggleHotkeyModifiers,
-                    Settings.Keys.disableInTextFields, Settings.Keys.autoDisappearSeconds,
+                    Settings.Keys.autoDisappearSeconds,
                     Settings.Keys.onboardingCompleted] {
             d.removeObject(forKey: key)
         }
 
-        XCTAssertEqual(Settings.shared.color, .red)
+        XCTAssertEqual(Settings.shared.color, .orange)
         XCTAssertFalse(Settings.shared.laserEnabled)
         XCTAssertEqual(Settings.shared.holdModifier, .option)
         XCTAssertEqual(Settings.shared.toggleHotkeyKeyCode, UInt32(kVK_Space))
         XCTAssertEqual(Settings.shared.toggleHotkeyModifiers, UInt32(optionKey))
-        XCTAssertFalse(Settings.shared.disableInTextFields, "text-field skip is opt-in (off by default)")
         XCTAssertEqual(Settings.shared.autoDisappearSeconds, 0, "shapes persist by default (auto-disappear off)")
         XCTAssertFalse(Settings.shared.onboardingCompleted)
     }
