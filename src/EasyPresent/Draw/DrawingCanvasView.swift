@@ -364,11 +364,11 @@ final class DrawingCanvasView: NSView {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self, self.haloActive else { return }
-                if Settings.shared.clickPulseEnabled {
-                    self.setHaloScaleTarget(event.type == .leftMouseDown ? Self.haloPressScale : 1.0)
-                    if event.type == .leftMouseDown {
-                        self.spawnClickPulseIfEnabled(at: self.cursorPoint)
-                    }
+                // The halo press-compress is always on; the expanding ring is the
+                // opt-in "Extra-animate click" (spawnClickPulseIfEnabled self-guards).
+                self.setHaloScaleTarget(event.type == .leftMouseDown ? Self.haloPressScale : 1.0)
+                if event.type == .leftMouseDown {
+                    self.spawnClickPulseIfEnabled(at: self.cursorPoint)
                 }
             }
         }
@@ -906,12 +906,10 @@ final class DrawingCanvasView: NSView {
         previewLayer = nil
         activeFreehand = nil
         freehandPoints = [point]
-        // Both click feedback animations (the expanding ring pulse + the halo
-        // press-compress) are gated by the same "Animate clicks" setting.
-        if Settings.shared.clickPulseEnabled {
-            spawnClickPulseIfEnabled(at: point)
-            setHaloScaleTarget(Self.haloPressScale)
-        }
+        // The halo press-compress is always on; the expanding ring pulse is the
+        // opt-in "Extra-animate click" (spawnClickPulseIfEnabled self-guards).
+        setHaloScaleTarget(Self.haloPressScale)
+        spawnClickPulseIfEnabled(at: point)
     }
 
     /// Ease the halo toward `target`, running a short animation timer until it settles.

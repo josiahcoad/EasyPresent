@@ -186,7 +186,7 @@ final class Settings: @unchecked Sendable {
             Keys.haloContrastEnabled: false,
             Keys.haloGlowEnabled: true,
             Keys.haloInfillStyle: HaloInfillStyle.border.rawValue,
-            Keys.clickPulseEnabled: true,
+            Keys.clickPulseEnabled: false,
             Keys.holdModifier: ActivationModifier.option.rawValue,
             Keys.toggleHotkeyKeyCode: Int(kVK_Space),
             Keys.toggleHotkeyModifiers: Int(optionKey),

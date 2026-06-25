@@ -88,7 +88,7 @@ struct AppearanceTab: View {
     @AppStorage(Settings.Keys.haloContrastEnabled) private var contrastEnabled: Bool = true
     @AppStorage(Settings.Keys.haloGlowEnabled) private var glowEnabled: Bool = true
     @AppStorage(Settings.Keys.haloInfillStyle) private var infillRaw: String = HaloInfillStyle.border.rawValue
-    @AppStorage(Settings.Keys.clickPulseEnabled) private var clickPulseEnabled: Bool = true
+    @AppStorage(Settings.Keys.clickPulseEnabled) private var clickPulseEnabled: Bool = false
     @AppStorage(Settings.Keys.customColorHex) private var customColorHex: String = ""
 
     private var presetColor: PenColor { PenColor(rawValue: colorRaw) ?? .red }
@@ -213,7 +213,7 @@ struct AppearanceTab: View {
 
             Section("Effects") {
                 Toggle("Trailing laser", isOn: $laserEnabled)
-                Toggle("Animate clicks", isOn: $clickPulseEnabled)
+                Toggle("Extra-animate click", isOn: $clickPulseEnabled)
             }
         }
         .formStyle(.grouped)
