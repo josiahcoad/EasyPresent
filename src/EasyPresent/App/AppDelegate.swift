@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -65,35 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         startOptionPoll()
 
-        // Accessibility is only needed for the optional "don't activate in text fields"
-        // behavior, which is off by default. We prompt for it when the user turns that
-        // setting on (see AppDelegate.requestTextFieldAccessibility / GeneralTab), not at launch.
-
         OnboardingCoordinator.shared.startIfFirstRun()
-    }
-
-    /// Prompt for Accessibility, which powers the optional "don't activate in text fields"
-    /// behavior. Called when the user turns that setting on. Safe to call repeatedly.
-    func requestTextFieldAccessibility() {
-        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(opts)
-    }
-
-    /// True if the system-wide focused UI element is an editable text control.
-    /// Requires Accessibility permission; returns false (don't skip) without it.
-    private func isEditingTextField() -> Bool {
-        guard AXIsProcessTrusted() else { return false }
-        let system = AXUIElementCreateSystemWide()
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused else { return false }
-        let element = focused as! AXUIElement
-        var roleValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
-              let role = roleValue as? String else { return false }
-        return role == (kAXTextFieldRole as String)
-            || role == (kAXTextAreaRole as String)
-            || role == (kAXComboBoxRole as String)
     }
 
     // MARK: - Option-hold activation
@@ -178,7 +149,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         controller.showOverlay()
         overlayController = controller
-        controller.setInteractive(true)  // presented because ⌥ is held → capture immediately
+        // Capture the mouse only if we should be drawing right now — either we're
+        // mid-⌥-hold (spring or pinned-via-hotkey), or the base modifier is currently
+        // held. A menu-bar "Draw" click with no modifier opens the pinned overlay in
+        // its transparent state so clicks still reach the app below until ⌥ is held.
+        let baseHeld = NSEvent.modifierFlags.contains(Settings.shared.holdModifier.flag)
+        controller.setInteractive(springLoaded || baseHeld)
         hotkeyManager.enableDrawShortcuts()
         OnboardingCoordinator.shared.drawModeEntered()
     }
@@ -186,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Cycle the active draw color through PenColor.allCases (⌥↑ next, ⌥↓ previous)
     /// and repaint the live overlay so the change is visible immediately.
     private func cycleColor(forward: Bool) {
+        // Cycling through presets clears any custom color so the cycle is meaningful.
+        Settings.shared.customColorHex = nil
         let current = Settings.shared.color
         Settings.shared.color = forward ? current.next : current.previous
         overlayController?.refreshColor()
@@ -438,7 +416,10 @@ private final class HintContentView: NSView {
 final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
-    private enum Step { case start, drawBox, cycleColor, drawArrow, exitInfo, tryHelp, openSettings, done }
+    private enum Step {
+        case start, drawFreehand, drawBox, drawArrow, cycleColor, exitInfo,
+             tryHelp, openSettings, done
+    }
 
     private var step: Step = .done
     private var active = false
@@ -473,21 +454,22 @@ final class OnboardingCoordinator {
     func drawModeEntered() {
         inDrawMode = true
         isPinned = false
-        if active, step == .start { step = .drawBox }
+        if active, step == .start { step = .drawFreehand }
         refresh()
     }
 
     func recordShape(_ type: ShapeType) {
         if active {
-            if step == .drawBox, type == .rectangle { step = .cycleColor }
-            else if step == .drawArrow, type == .arrow { step = .exitInfo }
+            if step == .drawFreehand, type == .freehand { step = .drawBox }
+            else if step == .drawBox, type == .rectangle { step = .drawArrow }
+            else if step == .drawArrow, type == .arrow { step = .cycleColor }
         }
         refresh()
     }
 
     /// The draw color was cycled with ⌥↑ / ⌥↓.
     func colorCycled() {
-        if active, step == .cycleColor { step = .drawArrow }
+        if active, step == .cycleColor { step = .exitInfo }
         refresh()
     }
 
@@ -553,21 +535,24 @@ final class OnboardingCoordinator {
         // Help popover (⌥? held) takes priority over everything.
         if helpVisible {
             return """
-            EasyPresent — hold \(mod) to draw, release to use your screen
-            \(mod) + drag:  box
+            EasyPresent Shortcuts
+            \(toggle):  toggle highlight
+            \(mod) + drag:  draw
+            \(mod)⌘ + drag:  box
             \(mod)⇧ + drag:  arrow
-            \(mod)↑ / \(mod)↓:  color
-            \(mod)E / \(mod)Z:  erase / undo
+            \(mod)E:  clear screen
+            \(mod)Z:  undo
+            \(mod)↑ / \(mod)↓:  cycle color
             \(mod)0–9:  auto-clear shapes (seconds)
-            \(toggle):  keep drawings on screen
             """
         }
         if active {
             switch step {
             case .start:        return "👋 Press \(toggle) to turn on drawing"
-            case .drawBox:      return "Hold \(mod) and drag to draw a box"
-            case .cycleColor:   return "Press \(mod)↑ / \(mod)↓ to change color"
+            case .drawFreehand: return "Hold \(mod) and drag to draw"
+            case .drawBox:      return "Hold \(mod) + ⌘ Cmd and drag to draw a box"
             case .drawArrow:    return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
+            case .cycleColor:   return "Press \(mod)↑ / \(mod)↓ to change color"
             case .exitInfo:     return "Let go of \(mod) to click & scroll under your drawings. \(toggle) to clear & exit"
             case .tryHelp:      return "Press ⌥? any time to see this help"
             case .openSettings: return "Press \(mod), to open Settings"
@@ -576,7 +561,7 @@ final class OnboardingCoordinator {
         }
         // First-run ambient hints (after onboarding, only while a session is on).
         if inDrawMode, Settings.shared.drawSessions <= 10 {
-            return "Hold \(mod) and drag to draw\n\(mod)⇧ drag for an arrow\n\(toggle) to exit"
+            return "Hold \(mod) and drag to draw\n\(mod)⌘ drag for a box · \(mod)⇧ drag for an arrow\n\(toggle) to clear & exit"
         }
         return nil
     }

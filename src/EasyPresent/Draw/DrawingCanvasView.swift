@@ -81,6 +81,26 @@ final class DrawingCanvasView: NSView {
     /// Repaint timer that ages out trail points while the trail is non-empty.
     private var laserTimer: Timer?
 
+    /// Wall-clock time the overlay appeared. Laser samples captured during a short
+    /// grace window after this are dropped so the trail doesn't "slide in" from the
+    /// cursor's pre-toggle path on activation.
+    private var appearTime: TimeInterval = 0
+
+    /// Grace period after appearance during which mouseMoved samples don't feed the laser.
+    private static let laserStartupGrace: TimeInterval = 0.25
+
+    // MARK: - Click Pulse
+
+    private struct ClickPulse {
+        let origin: CGPoint
+        let startTime: TimeInterval
+        let color: NSColor
+    }
+
+    private var clickPulses: [ClickPulse] = []
+    private var pulseTimer: Timer?
+    private static let pulseDuration: TimeInterval = 0.45
+
     /// Pins the halo to the live cursor by re-reading the global mouse location every
     /// tick and converting through the window. This is self-correcting: it stays exact
     /// even if the overlay window is repositioned after it appears (which otherwise made
@@ -110,7 +130,7 @@ final class DrawingCanvasView: NSView {
 
     /// How small the halo gets while the button is held, and the per-tick easing factor
     /// of the approach toward the target (higher = snappier).
-    private static let haloPressScale: CGFloat = 0.62
+    private static let haloPressScale: CGFloat = 0.78
     private static let haloScaleEasing: CGFloat = 0.30
 
     // MARK: - Auto-disappearing shapes
@@ -327,21 +347,29 @@ final class DrawingCanvasView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard window != nil else { return }
-        // The cursor is hidden + halo shown only while interactive (see setInteractive). Start
+        // The cursor is hidden + halo shown only while interactive (see setHaloActive). Start
         // tracking now so the halo is correctly placed the instant we become interactive. A
         // one-shot seed isn't enough: AppKit can reposition the window just after it appears.
+        appearTime = ProcessInfo.processInfo.systemUptime
+        laserTrail.removeAll()
         syncCursorToGlobalMouse()
         startCursorTrackingIfNeeded()
         startClickMonitorIfNeeded()
     }
 
-    /// Mirror the click "compress" for clicks that pass through to the app below (pinned mode).
+    /// Mirror the click feedback for clicks that pass through to the app below (pinned mode):
+    /// halo compress + (if enabled) the expanding ring pulse, at the current cursor point.
     private func startClickMonitorIfNeeded() {
         guard clickMonitor == nil else { return }
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self, self.haloActive else { return }
-                self.setHaloScaleTarget(event.type == .leftMouseDown ? Self.haloPressScale : 1.0)
+                if Settings.shared.clickPulseEnabled {
+                    self.setHaloScaleTarget(event.type == .leftMouseDown ? Self.haloPressScale : 1.0)
+                    if event.type == .leftMouseDown {
+                        self.spawnClickPulseIfEnabled(at: self.cursorPoint)
+                    }
+                }
             }
         }
     }
@@ -354,36 +382,13 @@ final class DrawingCanvasView: NSView {
         guard active != haloActive else { return }
         haloActive = active
         if active {
-            ensureCursorHidden()
             syncCursorToGlobalMouse()
         } else {
-            ensureCursorShown()
             isDragging = false
             previewLayer = nil
             laserTrail.removeAll()
         }
         needsDisplay = true
-    }
-
-    /// Net number of unbalanced `CGDisplayHideCursor` calls we've made, so we can show exactly
-    /// as many times to restore. (`CGDisplayHideCursor` is reference-counted; `CGCursorIsVisible`
-    /// is unavailable on modern macOS, so we track our own contribution.)
-    private var cursorHideCount = 0
-
-    /// Hide the system cursor (the halo replaces it). When the overlay is transparent the app
-    /// underneath re-shows its own cursor on each move, decrementing the shared count — so we
-    /// re-assert the hide per move (see `syncCursorToGlobalMouse`), which nets out near 0/1.
-    private func ensureCursorHidden() {
-        CGDisplayHideCursor(CGMainDisplayID())
-        cursorHideCount += 1
-    }
-
-    /// Undo exactly our hides so the system cursor comes back.
-    private func ensureCursorShown() {
-        while cursorHideCount > 0 {
-            CGDisplayShowCursor(CGMainDisplayID())
-            cursorHideCount -= 1
-        }
     }
 
     /// Read the current global mouse position and convert it into this view's coordinates.
@@ -395,9 +400,6 @@ final class DrawingCanvasView: NSView {
             cursorPoint = local
             cursorInside = inside
             needsDisplay = true
-            // Re-assert the hide on movement: while transparent (pinned passthrough) the app
-            // underneath re-shows its own cursor as the mouse moves, so we hide it again.
-            if haloActive { ensureCursorHidden() }
         }
     }
 
@@ -418,6 +420,9 @@ final class DrawingCanvasView: NSView {
             laserTimer = nil
             cursorTrackTimer?.invalidate()
             cursorTrackTimer = nil
+            pulseTimer?.invalidate()
+            pulseTimer = nil
+            clickPulses.removeAll()
             if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
             clickMonitor = nil
             haloPressTimer?.invalidate()
@@ -430,7 +435,6 @@ final class DrawingCanvasView: NSView {
             timedLayers.removeAll()
             laserTrail.removeAll()
             haloActive = false
-            ensureCursorShown()
         }
     }
 
@@ -493,48 +497,138 @@ final class DrawingCanvasView: NSView {
             NSGraphicsContext.current?.cgContext.setBlendMode(.normal)
         }
 
-        // 5. Halo ring + laser trail — while the halo is active and on the display the cursor
-        // is over. In a pinned session the halo stays on (a persistent pointer) even while the
-        // window passes clicks/scroll through.
+        // 5. Halo + laser trail — only while the halo is active and the cursor
+        // is over this display. In a pinned session the halo stays on (a persistent pointer)
+        // even while the window passes clicks/scroll through.
         if cursorInside && haloActive {
             drawHalo(in: context)
             drawLaserTrail(in: context)
         }
+
+        // 6. Click pulses — drawn regardless of cursor location so the ring still
+        // animates if the user keeps moving after clicking.
+        drawClickPulses(in: context)
     }
 
-    /// A glowing neon ring centered on the cursor so the audience can follow the pointer.
+    /// A glowing customizable ring centered on the cursor so the audience can follow the
+    /// pointer. `haloScale` (1.0 at rest, ~0.62 while pressing) gives press feedback.
     private func drawHalo(in context: CGContext) {
-        let haloColor = Settings.shared.color.nsColor
-        let radius: CGFloat = 24 * haloScale
-        let rect = CGRect(x: cursorPoint.x - radius, y: cursorPoint.y - radius,
+        Self.drawHalo(
+            in: context,
+            at: cursorPoint,
+            color: Settings.shared.resolvedNSColor,
+            radius: Settings.shared.haloSize * haloScale,
+            outerRingEnabled: Settings.shared.haloOuterRingEnabled,
+            centerStyle: Settings.shared.haloCenterStyle,
+            contrastEnabled: Settings.shared.haloContrastEnabled,
+            glowEnabled: Settings.shared.haloGlowEnabled,
+            infillStyle: Settings.shared.haloInfillStyle
+        )
+    }
+
+    /// Stateless infill painter: solid soft alpha disk, a thick light-alpha
+    /// band hugging the inner edge of the ring, or nothing at all.
+    static func drawHaloInfill(
+        in context: CGContext,
+        rect: CGRect,
+        radius: CGFloat,
+        color: NSColor,
+        style: HaloInfillStyle
+    ) {
+        switch style {
+        case .filled:
+            context.setFillColor(color.withAlphaComponent(0.18).cgColor)
+            context.fillEllipse(in: rect)
+        case .border:
+            let bandWidth = max(2, radius * 0.225)
+            let inset = bandWidth / 2
+            context.saveGState()
+            context.setStrokeColor(color.withAlphaComponent(0.25).cgColor)
+            context.setLineWidth(bandWidth)
+            context.strokeEllipse(in: rect.insetBy(dx: inset, dy: inset))
+            context.restoreGState()
+        case .none:
+            break
+        }
+    }
+
+    /// Stateless halo renderer shared by the live overlay and the Settings preview.
+    static func drawHalo(
+        in context: CGContext,
+        at point: CGPoint,
+        color: NSColor,
+        radius: CGFloat,
+        outerRingEnabled: Bool,
+        centerStyle: HaloCenterStyle,
+        contrastEnabled: Bool,
+        glowEnabled: Bool,
+        infillStyle: HaloInfillStyle
+    ) {
+        context.saveGState()
+
+        let rect = CGRect(x: point.x - radius, y: point.y - radius,
                           width: radius * 2, height: radius * 2)
-        context.saveGState()
-        context.setLineCap(.round)
 
-        // 1. Outer bloom — stroke the ring with a large soft shadow in the halo color; a second
-        // pass deepens the glow (the shadow re-applies per draw).
-        context.saveGState()
-        context.setShadow(offset: .zero, blur: 11 * haloScale,
-                          color: haloColor.withAlphaComponent(0.7).cgColor)
-        context.setStrokeColor(haloColor.cgColor)
-        context.setLineWidth(6 * haloScale)
-        context.strokeEllipse(in: rect)
-        context.strokeEllipse(in: rect)
-        context.restoreGState()
+        Self.drawHaloInfill(in: context, rect: rect, radius: radius,
+                            color: color, style: infillStyle)
 
-        // 2. Faint fill tint inside the ring.
-        context.setFillColor(haloColor.withAlphaComponent(0.08).cgColor)
-        context.fillEllipse(in: rect)
+        if outerRingEnabled {
+            // Outer glow — a tighter, brighter halo hugging the ring. Two stroked
+            // passes through a shadow stack each other up so it reads as a real
+            // light bloom rather than a diffuse haze.
+            if glowEnabled {
+                context.saveGState()
+                let glowBlur = max(5, radius * 0.5)
+                context.setShadow(offset: .zero, blur: glowBlur,
+                                  color: color.withAlphaComponent(0.8).cgColor)
+                context.setStrokeColor(color.cgColor)
+                context.setLineWidth(2.5)
+                context.strokeEllipse(in: rect)
+                // Second pass intensifies the glow without widening it.
+                context.strokeEllipse(in: rect)
+                context.restoreGState()
+            }
+            if contrastEnabled {
+                context.setStrokeColor(NSColor.black.withAlphaComponent(0.35).cgColor)
+                context.setLineWidth(4.5)
+                context.strokeEllipse(in: rect)
+            }
+            context.setStrokeColor(color.withAlphaComponent(0.95).cgColor)
+            context.setLineWidth(2.5)
+            context.strokeEllipse(in: rect)
+        }
 
-        // 3. Bright crisp ring core on top.
-        context.setStrokeColor(haloColor.withAlphaComponent(0.98).cgColor)
-        context.setLineWidth(4 * haloScale)
-        context.strokeEllipse(in: rect)
-
-        // 4. Inner white-hot highlight for the neon look.
-        context.setStrokeColor(NSColor.white.withAlphaComponent(0.55).cgColor)
-        context.setLineWidth(1.3 * haloScale)
-        context.strokeEllipse(in: rect.insetBy(dx: 1.6, dy: 1.6))
+        switch centerStyle {
+        case .plus:
+            let arm: CGFloat = 7
+            context.setLineCap(.round)
+            func plus(strokeColor: NSColor, width: CGFloat) {
+                context.setStrokeColor(strokeColor.cgColor)
+                context.setLineWidth(width)
+                context.move(to: CGPoint(x: point.x - arm, y: point.y))
+                context.addLine(to: CGPoint(x: point.x + arm, y: point.y))
+                context.move(to: CGPoint(x: point.x, y: point.y - arm))
+                context.addLine(to: CGPoint(x: point.x, y: point.y + arm))
+                context.strokePath()
+            }
+            if contrastEnabled {
+                plus(strokeColor: NSColor.black.withAlphaComponent(0.35), width: 4)
+            }
+            plus(strokeColor: color.withAlphaComponent(0.95), width: 2)
+        case .dot:
+            let r: CGFloat = 3.5
+            if contrastEnabled {
+                let outer = CGRect(x: point.x - r - 1, y: point.y - r - 1,
+                                   width: (r + 1) * 2, height: (r + 1) * 2)
+                context.setFillColor(NSColor.black.withAlphaComponent(0.45).cgColor)
+                context.fillEllipse(in: outer)
+            }
+            let inner = CGRect(x: point.x - r, y: point.y - r, width: r * 2, height: r * 2)
+            context.setFillColor(color.withAlphaComponent(0.95).cgColor)
+            context.fillEllipse(in: inner)
+        case .none:
+            break
+        }
 
         context.restoreGState()
     }
@@ -612,17 +706,19 @@ final class DrawingCanvasView: NSView {
     override func mouseMoved(with event: NSEvent) {
         guard !isDragging else { return }
         // The halo follows every move. The laser trail is sampled when it's enabled in
-        // Settings, OR transiently while ⇧ Shift is held (without dragging) — a quick
-        // "laser on demand" gesture for presenters who keep the trail off by default.
+        // Settings. (Upstream had a transient "hold ⇧ for laser" gesture, but it now
+        // collides with ⌥⇧ + drag = arrow — the trail would appear as the user moved
+        // the mouse before mouse-down. Rely on the Settings toggle only.)
         cursorInside = true
         let point = convert(event.locationInWindow, from: nil)
         cursorPoint = point
-        let laserActive = Settings.shared.laserEnabled || event.modifierFlags.contains(.shift)
-        if laserActive {
+        if Settings.shared.laserEnabled {
             let now = ProcessInfo.processInfo.systemUptime
-            laserTrail.append(LaserPoint(location: point, time: now))
-            pruneLaserTrail(now: now)
-            startLaserTimerIfNeeded()
+            if now - appearTime >= Self.laserStartupGrace {
+                appendLaserSamples(to: point, time: now)
+                pruneLaserTrail(now: now)
+                startLaserTimerIfNeeded()
+            }
         }
         needsDisplay = true
     }
@@ -643,6 +739,30 @@ final class DrawingCanvasView: NSView {
     /// Drop trail points that have fully faded.
     private func pruneLaserTrail(now: TimeInterval) {
         laserTrail.removeAll { now - $0.time > Self.laserFadeDuration }
+    }
+
+    /// Append the new sample, plus enough linearly-interpolated intermediate samples
+    /// that consecutive points are never further apart than the line cap diameter.
+    /// Without this, fast cursor motion leaves the round caps visible as discrete
+    /// "dots" along the trail because segments are longer than the line is wide.
+    private func appendLaserSamples(to point: CGPoint, time: TimeInterval) {
+        let maxSpacing: CGFloat = 5  // ~lineWidth/sqrt(2) so caps fully overlap
+        if let last = laserTrail.last {
+            let dx = point.x - last.location.x
+            let dy = point.y - last.location.y
+            let dist = hypot(dx, dy)
+            if dist > maxSpacing {
+                let steps = Int((dist / maxSpacing).rounded(.up))
+                for k in 1..<steps {
+                    let f = CGFloat(k) / CGFloat(steps)
+                    let interp = CGPoint(x: last.location.x + dx * f,
+                                         y: last.location.y + dy * f)
+                    let interpTime = last.time + Double(f) * (time - last.time)
+                    laserTrail.append(LaserPoint(location: interp, time: interpTime))
+                }
+            }
+        }
+        laserTrail.append(LaserPoint(location: point, time: time))
     }
 
     /// Run a ~60 Hz repaint while the trail is alive so it fades smoothly even
@@ -667,60 +787,105 @@ final class DrawingCanvasView: NSView {
         guard let headPoint = laserTrail.last else { return }
         let head = headPoint.location
         let now = ProcessInfo.processInfo.systemUptime
-        // Whole-trail freshness — lets the streak dim away gracefully once the cursor stops.
-        let globalT = max(0.0, 1.0 - (now - headPoint.time) / Self.laserFadeDuration)
+        let color = Settings.shared.resolvedNSColor
 
-        // Stroke the entire trail as ONE continuous path and fill the stroked region
-        // with a tail→head gradient. (Stroking each sample segment separately left a
-        // round line-cap at every sample, which read as beads along the trail.)
         if laserTrail.count >= 2 {
-            let path = CGMutablePath()
-            path.move(to: laserTrail[0].location)
-            for point in laserTrail.dropFirst() { path.addLine(to: point.location) }
-            let tail = laserTrail[0].location
-            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            // Smooth positions in-place; keep 1:1 correspondence with timestamps so each
+            // segment fades on its own age. (The previous single-gradient approach made
+            // the whole tail jump when the oldest sample aged out and got pruned.)
+            let smoothed = FreehandRenderer.movingAverage(
+                laserTrail.map(\.location), windowRadius: 2
+            )
 
-            // Soft outer glow, then bright core — same path, different width/alpha.
-            drawLaserBand(path, width: 18, maxAlpha: 0.28 * globalT, from: tail, to: head,
-                          colorSpace: colorSpace, in: context)
-            drawLaserBand(path, width: 6, maxAlpha: 1.0 * globalT, from: tail, to: head,
-                          colorSpace: colorSpace, in: context)
+            func ageAlpha(_ t: TimeInterval) -> CGFloat {
+                max(0, 1.0 - CGFloat((now - t) / Self.laserFadeDuration))
+            }
+
+            // Two passes: soft outer glow, then bright core. Same path geometry, different
+            // widths. Round caps at every join — adjacent segments share an endpoint and
+            // width so the caps overlap perfectly (no beads).
+            for (width, maxAlpha) in [(CGFloat(18), CGFloat(0.14)), (CGFloat(6), CGFloat(0.5))] {
+                context.saveGState()
+                context.setLineCap(.round)
+                context.setLineJoin(.round)
+                context.setLineWidth(width)
+                for i in 0..<(smoothed.count - 1) {
+                    // Use the segment's NEWER endpoint age so the head end of each segment
+                    // matches the next segment's tail end — alpha is continuous across joins.
+                    let alpha = ageAlpha(laserTrail[i + 1].time) * maxAlpha
+                    guard alpha > 0 else { continue }
+                    context.setStrokeColor(color.withAlphaComponent(alpha).cgColor)
+                    context.move(to: smoothed[i])
+                    context.addLine(to: smoothed[i + 1])
+                    context.strokePath()
+                }
+                context.restoreGState()
+            }
         }
 
-        // Bright dot at the cursor head.
-        guard globalT > 0 else { return }
+        // Bright dot at the cursor head, tied to the head sample's own age.
+        let headT = max(0, 1.0 - CGFloat((now - headPoint.time) / Self.laserFadeDuration))
+        guard headT > 0 else { return }
         let r: CGFloat = 5.0
         context.saveGState()
-        context.setFillColor(Settings.shared.color.nsColor.withAlphaComponent(0.30 * globalT).cgColor)
+        context.setFillColor(color.withAlphaComponent(0.30 * headT).cgColor)
         context.fillEllipse(in: CGRect(x: head.x - r - 4, y: head.y - r - 4,
                                        width: 2 * (r + 4), height: 2 * (r + 4)))
-        context.setFillColor(Settings.shared.color.nsColor.withAlphaComponent(0.95 * globalT).cgColor)
+        context.setFillColor(color.withAlphaComponent(0.95 * headT).cgColor)
         context.fillEllipse(in: CGRect(x: head.x - r, y: head.y - r, width: 2 * r, height: 2 * r))
-        context.setFillColor(NSColor.white.withAlphaComponent(0.85 * globalT).cgColor)
+        context.setFillColor(NSColor.white.withAlphaComponent(0.85 * headT).cgColor)
         context.fillEllipse(in: CGRect(x: head.x - 2.0, y: head.y - 2.0, width: 4.0, height: 4.0))
         context.restoreGState()
     }
 
-    /// Stroke `path` once and fill the stroked region with a transparent→red gradient
-    /// running tail→head, producing a smooth (bead-free) comet streak.
-    private func drawLaserBand(_ path: CGPath, width: CGFloat, maxAlpha: CGFloat,
-                               from tail: CGPoint, to head: CGPoint,
-                               colorSpace: CGColorSpace, in context: CGContext) {
-        guard maxAlpha > 0 else { return }
+    // MARK: - Click Pulse
+
+    private func spawnClickPulseIfEnabled(at point: CGPoint) {
+        guard Settings.shared.clickPulseEnabled else { return }
+        let pulse = ClickPulse(origin: point,
+                               startTime: ProcessInfo.processInfo.systemUptime,
+                               color: Settings.shared.resolvedNSColor)
+        clickPulses.append(pulse)
+        startPulseTimerIfNeeded()
+        needsDisplay = true
+    }
+
+    private func startPulseTimerIfNeeded() {
+        guard pulseTimer == nil else { return }
+        pulseTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let now = ProcessInfo.processInfo.systemUptime
+                self.clickPulses.removeAll { now - $0.startTime > Self.pulseDuration }
+                self.needsDisplay = true
+                if self.clickPulses.isEmpty {
+                    self.pulseTimer?.invalidate()
+                    self.pulseTimer = nil
+                }
+            }
+        }
+    }
+
+    private func drawClickPulses(in context: CGContext) {
+        guard !clickPulses.isEmpty else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        let startRadius = max(Settings.shared.haloSize, 10)
+        let endRadius = startRadius * 2.5
         context.saveGState()
-        context.addPath(path)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
-        context.setLineWidth(width)
-        context.replacePathWithStrokedPath()
-        context.clip()
-        let colors = [
-            Settings.shared.color.nsColor.withAlphaComponent(0).cgColor,
-            Settings.shared.color.nsColor.withAlphaComponent(maxAlpha).cgColor
-        ] as CFArray
-        if let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: [0, 1]) {
-            context.drawLinearGradient(gradient, start: tail, end: head,
-                                       options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        for pulse in clickPulses {
+            // Keep all the animation math in CGFloat so it composes cleanly with
+            // startRadius/endRadius below (CGFloat is Double on 64-bit, so this
+            // currently compiles, but the explicit conversion guards against the
+            // mixed-type breakage if CGFloat ever becomes Float in some build).
+            let t = CGFloat(min(1.0, max(0.0, (now - pulse.startTime) / Self.pulseDuration)))
+            let eased = 1.0 - pow(1.0 - t, 3.0) // easeOutCubic
+            let radius = startRadius + (endRadius - startRadius) * eased
+            let alpha = (1.0 - t) * 0.55
+            let rect = CGRect(x: pulse.origin.x - radius, y: pulse.origin.y - radius,
+                              width: radius * 2, height: radius * 2)
+            context.setStrokeColor(pulse.color.withAlphaComponent(alpha).cgColor)
+            context.setLineWidth(2.5)
+            context.strokeEllipse(in: rect)
         }
         context.restoreGState()
     }
@@ -732,14 +897,21 @@ final class DrawingCanvasView: NSView {
     // MARK: - Mouse Events
 
     override func mouseDown(with event: NSEvent) {
-        // Starting a box drag cancels the laser trail.
+        // Starting a drag cancels the laser trail.
         laserTrail.removeAll()
         let point = convert(event.locationInWindow, from: nil)
         dragOrigin = point
         cursorPoint = point
         isDragging = true
         previewLayer = nil
-        setHaloScaleTarget(Self.haloPressScale)  // compress while the button is held
+        activeFreehand = nil
+        freehandPoints = [point]
+        // Both click feedback animations (the expanding ring pulse + the halo
+        // press-compress) are gated by the same "Animate clicks" setting.
+        if Settings.shared.clickPulseEnabled {
+            spawnClickPulseIfEnabled(at: point)
+            setHaloScaleTarget(Self.haloPressScale)
+        }
     }
 
     /// Ease the halo toward `target`, running a short animation timer until it settles.
@@ -761,9 +933,12 @@ final class DrawingCanvasView: NSView {
         }
     }
 
-    /// ⌥⇧+drag draws an arrow; a plain ⌥+drag draws a box.
+    /// ⇧+drag → arrow, ⌘+drag → rectangle, otherwise freehand draw.
     private func dragShapeType(for event: NSEvent) -> ShapeType {
-        event.modifierFlags.contains(.shift) ? .arrow : .rectangle
+        let mods = event.modifierFlags
+        if mods.contains(.shift)   { return .arrow }
+        if mods.contains(.command) { return .rectangle }
+        return .freehand
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -772,11 +947,16 @@ final class DrawingCanvasView: NSView {
         cursorPoint = currentPoint
         switch dragShapeType(for: event) {
         case .arrow:
-            // Tip (arrowhead) at the cursor, tail at the drag origin.
+            activeFreehand = nil
             previewLayer = ShapeRenderer.arrowPath(from: currentPoint, to: dragOrigin,
                                                    penWidth: drawingState.penWidth)
-        default:
+        case .rectangle:
+            activeFreehand = nil
             previewLayer = ShapeRenderer.rectanglePath(from: dragOrigin, to: currentPoint)
+        default:
+            previewLayer = nil
+            freehandPoints.append(currentPoint)
+            activeFreehand = FreehandRenderer.smoothedPath(from: freehandPoints)
         }
         setNeedsDisplay(bounds)
     }
@@ -790,7 +970,7 @@ final class DrawingCanvasView: NSView {
         cursorPoint = currentPoint
         let shapeType = dragShapeType(for: event)
 
-        // Skip zero-size shapes (a click with no drag) so they don't inflate stats/undo.
+        // Skip zero-size strokes (a click with no drag) so they don't inflate stats/undo.
         let dragged = hypot(currentPoint.x - dragOrigin.x, currentPoint.y - dragOrigin.y) > 3
 
         if dragged {
@@ -798,8 +978,6 @@ final class DrawingCanvasView: NSView {
             // Auto-disappear applies only in a toggled (pinned) session, not a hold session
             // — a hold session already clears everything the moment you release the modifier.
             if autoSecs > 0, !exitsOnOptionRelease {
-                // Keep the shape as a timed object that fades on its own, rather than baking
-                // it permanently into the finished layer.
                 addTimedShape(shapeType: shapeType, endPoint: currentPoint, life: autoSecs)
             } else {
                 // Push current state for undo, then composite the shape into the finished layer.
@@ -811,13 +989,12 @@ final class DrawingCanvasView: NSView {
                 finishedLayer = compositeStrokeOntoFinished(shapeType: shapeType, endPoint: currentPoint)
             }
 
-            // Local usage counters.
             switch shapeType {
-            case .arrow: Settings.shared.arrowsDrawn += 1
-            default:     Settings.shared.boxesDrawn += 1
+            case .arrow:     Settings.shared.arrowsDrawn += 1
+            case .rectangle: Settings.shared.boxesDrawn += 1
+            default:         break
             }
 
-            // Advance the guided onboarding when the expected shape is drawn.
             OnboardingCoordinator.shared.recordShape(shapeType)
         }
         // A plain click (no drag) needs no special handling: the overlay only captures the
@@ -825,15 +1002,19 @@ final class DrawingCanvasView: NSView {
         // transparent and the click lands natively).
 
         previewLayer = nil
+        activeFreehand = nil
+        freehandPoints.removeAll()
         setNeedsDisplay(bounds)
     }
 
-    /// The stroked path for a dragged box/arrow (tip at the cursor for arrows).
+    /// The stroked path for a finished drag (box / arrow / freehand).
     private func shapePath(shapeType: ShapeType, endPoint: CGPoint) -> CGPath {
         switch shapeType {
         case .arrow:
             return ShapeRenderer.arrowPath(from: endPoint, to: dragOrigin,
                                            penWidth: drawingState.penWidth).cgPath
+        case .freehand:
+            return FreehandRenderer.smoothedPath(from: freehandPoints).cgPath
         default:
             return ShapeRenderer.rectanglePath(from: dragOrigin, to: endPoint).cgPath
         }

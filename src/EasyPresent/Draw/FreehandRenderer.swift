@@ -5,7 +5,8 @@ enum FreehandRenderer {
 
     /// Generates a smoothed NSBezierPath from raw input points using Catmull-Rom subdivision.
     /// Falls back to simple line segments if fewer than 4 points are available.
-    static func smoothedPath(from points: [CGPoint]) -> NSBezierPath {
+    static func smoothedPath(from rawPoints: [CGPoint]) -> NSBezierPath {
+        let points = movingAverage(rawPoints, windowRadius: 2)
         let path = NSBezierPath()
         guard !points.isEmpty else { return path }
 
@@ -41,5 +42,26 @@ enum FreehandRenderer {
         }
 
         return path
+    }
+
+    /// Symmetric moving-average over a window of `2*radius+1` samples.
+    /// Endpoints are preserved so the stroke doesn't pull inward at start/end.
+    static func movingAverage(_ points: [CGPoint], windowRadius: Int) -> [CGPoint] {
+        guard windowRadius > 0, points.count > 2 else { return points }
+        var smoothed: [CGPoint] = []
+        smoothed.reserveCapacity(points.count)
+        for i in 0..<points.count {
+            if i == 0 || i == points.count - 1 {
+                smoothed.append(points[i])
+                continue
+            }
+            let lo = max(0, i - windowRadius)
+            let hi = min(points.count - 1, i + windowRadius)
+            var sx: CGFloat = 0, sy: CGFloat = 0
+            for j in lo...hi { sx += points[j].x; sy += points[j].y }
+            let n = CGFloat(hi - lo + 1)
+            smoothed.append(CGPoint(x: sx / n, y: sy / n))
+        }
+        return smoothed
     }
 }
