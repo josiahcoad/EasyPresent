@@ -553,7 +553,7 @@ final class OnboardingCoordinator {
             case .drawBox:      return "Hold \(mod) + ⌘ Cmd and drag to draw a box"
             case .drawArrow:    return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .cycleColor:   return "Press \(mod)↑ / \(mod)↓ to change color"
-            case .exitInfo:     return "Let go of \(mod) to click & scroll under your drawings. \(toggle) to clear & exit"
+            case .exitInfo:     return "Let go of \(mod) — clicks, scroll & typing pass through, so you can flip slides without turning off.\n\(toggle) to clear & exit"
             case .tryHelp:      return "Press ⌥? any time to see this help"
             case .openSettings: return "Press \(mod), to open Settings"
             case .done:         return nil
