@@ -1,12 +1,9 @@
 # EasyPresent
 
-A tiny macOS menu-bar tool for presenting: hold a key to drop a **halo** on your cursor,
-**draw freehand**, drop quick **boxes** and **arrows**, and an optional fading **laser**
-trail — then let go and it all vanishes.
+A super lightweight tool for presentating. Give your cursor a halo. Draw boxes/arrows.
+Focus your audience. Communicate more effectively. Close the sale faster.
 
-> EasyPresent is a fork of **[07JP27/ZoomacIt](https://github.com/07JP27/ZoomacIt)**,
-> reworked from a ZoomIt-style annotation app into a focused presenter pointer.
-> Licensed under **GPL-3.0**.
+📹 **[Watch the demo](https://www.loom.com/share/d867d6a1dc7741bb9d57e5d64eaf3c42)**
 
 ## Install
 
@@ -17,15 +14,15 @@ Pick **one** of these.
 brew tap josiahcoad/tap && brew trust josiahcoad/tap && brew install --cask easypresent && open -a EasyPresent
 ```
 
-The final `open -a EasyPresent` launches the app and starts the guided onboarding. The cask
-clears the download quarantine automatically. The app isn't notarized, so if macOS still shows
-*"Apple could not verify…"*, approve it once via **System Settings → Privacy & Security → Open
-Anyway**.
-
 **Option B — Direct download**
 Grab the latest `EasyPresent-vX.Y.Z.dmg` from
-[Releases](https://github.com/josiahcoad/EasyPresent/releases), drag it to Applications, then
-**right-click → Open** once (the build is ad-hoc signed, so Gatekeeper warns the first time).
+[Releases](https://github.com/josiahcoad/EasyPresent/releases) and drag it to Applications. The
+build isn't notarized, so macOS quarantines it — if you see *"EasyPresent is damaged and can't
+be opened"*, clear the quarantine flag once:
+```bash
+xattr -dr com.apple.quarantine /Applications/EasyPresent.app
+```
+Then open it normally. No permissions required.
 
 ### Updating
 
@@ -38,15 +35,9 @@ automatically). Direct-download users re-download the latest DMG.
 
 ## Usage
 
-**Press ⌥Space to turn drawing on; ⌥Space again to clear & turn it off.** While it's on, a
-glowing halo follows your cursor as a presenter pointer, and clicks, scrolling, and typing all
-pass straight through to whatever's underneath (slides, video, browser). **Hold ⌥ to draw** —
-release ⌥ and you're back to the pass-through pointer. No permissions required.
-
-While drawing is on:
-
 | Gesture | Action |
 |---|---|
+| **⌥Space** | Turn drawing mode on |
 | **move** | Glowing halo pointer (clicks/scroll pass through) |
 | **⌥ + drag** | Draw freehand |
 | **⌥⌘ + drag** | Draw a box |
@@ -61,13 +52,6 @@ While drawing is on:
 
 A guided onboarding runs on first launch (replay it any time from **Settings → General →
 Launch Onboarding**), and brief hints appear for your first few sessions.
-
-## Settings
-
-Menu-bar icon → **Settings**:
-- **Activation** — choose the hold modifier (Option / Control / Command)
-- **Cursor** — halo color, the trailing laser (off by default), and auto-clear timeout for shapes
-- **Stats** — local-only counts of sessions / boxes / arrows (never transmitted)
 
 ## Development
 
