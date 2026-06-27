@@ -183,7 +183,8 @@ final class DrawingCanvasView: NSView {
             cursor = Self.spotlightCursor
         default:
             let mods = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            let shapeType = drawingState.currentShapeType(modifiers: mods)
+            let shapeType = Self.dragShape(modifiers: mods,
+                                           plainDragDrawsBox: Settings.shared.plainDragDrawsBox)
             cursor = shapeType == .freehand ? penCursor() : crosshairCursor()
         }
         addCursorRect(bounds, cursor: cursor)
@@ -931,12 +932,20 @@ final class DrawingCanvasView: NSView {
         }
     }
 
-    /// ⇧+drag → arrow, ⌘+drag → rectangle, otherwise freehand draw.
+    /// Pure modifier → shape mapping for a drag, shared by the drag handler and the
+    /// cursor. ⇧ always means arrow. The plain-drag vs ⌘-drag pair (box / freehand) is
+    /// swappable via `plainDragDrawsBox`: when true, plain drag is a box and ⌘ is
+    /// freehand; when false, the two are reversed.
+    nonisolated static func dragShape(modifiers: NSEvent.ModifierFlags, plainDragDrawsBox: Bool) -> ShapeType {
+        if modifiers.contains(.shift) { return .arrow }
+        let primary: ShapeType = plainDragDrawsBox ? .rectangle : .freehand
+        let secondary: ShapeType = plainDragDrawsBox ? .freehand : .rectangle
+        return modifiers.contains(.command) ? secondary : primary
+    }
+
     private func dragShapeType(for event: NSEvent) -> ShapeType {
-        let mods = event.modifierFlags
-        if mods.contains(.shift)   { return .arrow }
-        if mods.contains(.command) { return .rectangle }
-        return .freehand
+        Self.dragShape(modifiers: event.modifierFlags,
+                       plainDragDrawsBox: Settings.shared.plainDragDrawsBox)
     }
 
     override func mouseDragged(with event: NSEvent) {

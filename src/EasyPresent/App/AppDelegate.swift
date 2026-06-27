@@ -417,9 +417,20 @@ final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
     private enum Step {
-        case start, drawFreehand, drawBox, drawArrow, cycleColor, exitInfo,
+        case start, drawPrimary, drawSecondary, drawArrow, cycleColor, exitInfo,
              tryHelp, openSettings, done
     }
+
+    /// The shape produced by a plain hold-modifier drag (the first thing onboarding
+    /// teaches), and the shape produced by ⌘ + drag (the second). Both follow the
+    /// user's `plainDragDrawsBox` setting so the guided steps match real behavior.
+    private var primaryShape: ShapeType { Settings.shared.plainDragDrawsBox ? .rectangle : .freehand }
+    private var secondaryShape: ShapeType { Settings.shared.plainDragDrawsBox ? .freehand : .rectangle }
+    private var primaryNoun: String { Settings.shared.plainDragDrawsBox ? "a box" : "freehand" }
+    private var secondaryNoun: String { Settings.shared.plainDragDrawsBox ? "freehand" : "a box" }
+    /// Compact forms for the help card / shortcut list ("box" / "draw").
+    private var primaryShort: String { Settings.shared.plainDragDrawsBox ? "box" : "draw" }
+    private var secondaryShort: String { Settings.shared.plainDragDrawsBox ? "draw" : "box" }
 
     private var step: Step = .done
     private var active = false
@@ -454,14 +465,14 @@ final class OnboardingCoordinator {
     func drawModeEntered() {
         inDrawMode = true
         isPinned = false
-        if active, step == .start { step = .drawFreehand }
+        if active, step == .start { step = .drawPrimary }
         refresh()
     }
 
     func recordShape(_ type: ShapeType) {
         if active {
-            if step == .drawFreehand, type == .freehand { step = .drawBox }
-            else if step == .drawBox, type == .rectangle { step = .drawArrow }
+            if step == .drawPrimary, type == primaryShape { step = .drawSecondary }
+            else if step == .drawSecondary, type == secondaryShape { step = .drawArrow }
             else if step == .drawArrow, type == .arrow { step = .cycleColor }
         }
         refresh()
@@ -537,8 +548,8 @@ final class OnboardingCoordinator {
             return """
             EasyPresent Shortcuts
             \(toggle):  toggle highlight
-            \(mod) + drag:  draw
-            \(mod)⌘ + drag:  box
+            \(mod) + drag:  \(primaryShort)
+            \(mod)⌘ + drag:  \(secondaryShort)
             \(mod)⇧ + drag:  arrow
             \(mod)E:  clear screen
             \(mod)Z:  undo
@@ -548,10 +559,10 @@ final class OnboardingCoordinator {
         }
         if active {
             switch step {
-            case .start:        return "👋 Press \(toggle) to turn on drawing"
-            case .drawFreehand: return "Hold \(mod) and drag to draw"
-            case .drawBox:      return "Hold \(mod) + ⌘ Cmd and drag to draw a box"
-            case .drawArrow:    return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
+            case .start:         return "👋 Press \(toggle) to turn on drawing"
+            case .drawPrimary:   return "Hold \(mod) and drag to draw \(primaryNoun)"
+            case .drawSecondary: return "Hold \(mod) + ⌘ Cmd and drag to draw \(secondaryNoun)"
+            case .drawArrow:     return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .cycleColor:   return "Press \(mod)↑ / \(mod)↓ to change color"
             case .exitInfo:     return "Let go of \(mod) — clicks, scroll & typing pass through, so you can flip slides without turning off.\n\(toggle) to clear & exit"
             case .tryHelp:      return "Press ⌥? any time to see this help"
@@ -561,7 +572,7 @@ final class OnboardingCoordinator {
         }
         // First-run ambient hints (after onboarding, only while a session is on).
         if inDrawMode, Settings.shared.drawSessions <= 10 {
-            return "Hold \(mod) and drag to draw\n\(mod)⌘ drag for a box · \(mod)⇧ drag for an arrow\n\(toggle) to clear & exit"
+            return "Hold \(mod) and drag to draw \(primaryNoun)\n\(mod)⌘ drag for \(secondaryNoun) · \(mod)⇧ drag for an arrow\n\(toggle) to clear & exit"
         }
         return nil
     }

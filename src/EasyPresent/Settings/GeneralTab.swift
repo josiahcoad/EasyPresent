@@ -65,6 +65,7 @@ struct GeneralTab: View {
     @AppStorage(Settings.Keys.holdModifier) private var holdModifierRaw: String = ActivationModifier.option.rawValue
     @AppStorage(Settings.Keys.toggleHotkeyKeyCode) private var toggleKeyCode: Int = Int(kVK_Space)
     @AppStorage(Settings.Keys.autoDisappearSeconds) private var autoDisappearSeconds: Double = 0
+    @AppStorage(Settings.Keys.plainDragDrawsBox) private var plainDragDrawsBox: Bool = true
 
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
 
@@ -94,12 +95,21 @@ struct GeneralTab: View {
                     BaseKeyRecorderView(keyCode: $toggleKeyCode, baseModifier: holdModifier)
                         .frame(width: 140, height: 28)
                 }
+                Picker("\(sym) + drag draws", selection: $plainDragDrawsBox) {
+                    Text("Box").tag(true)
+                    Text("Freehand").tag(false)
+                }
             }
 
             Section("Shortcuts") {
                 gestureRow("Toggle highlight", toggleTokens)
-                gestureRow("Draw",             [.key(sym), .text("+ drag")])
-                gestureRow("Box",              [.key(sym), .key("⌘"), .text("+ drag")])
+                if plainDragDrawsBox {
+                    gestureRow("Box",  [.key(sym), .text("+ drag")])
+                    gestureRow("Draw", [.key(sym), .key("⌘"), .text("+ drag")])
+                } else {
+                    gestureRow("Draw", [.key(sym), .text("+ drag")])
+                    gestureRow("Box",  [.key(sym), .key("⌘"), .text("+ drag")])
+                }
                 gestureRow("Arrow",            [.key(sym), .key("⇧"), .text("+ drag")])
                 gestureRow("Clear screen",     [.key(sym), .key("E")])
                 gestureRow("Undo",             [.key(sym), .key("Z")])

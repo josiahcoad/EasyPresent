@@ -130,6 +130,7 @@ final class Settings: @unchecked Sendable {
         static let toggleHotkeyKeyCode = "toggleHotkeyKeyCode"
         static let toggleHotkeyModifiers = "toggleHotkeyModifiers"
         static let autoDisappearSeconds = "drawAutoDisappearSeconds"
+        static let plainDragDrawsBox = "drawPlainDragDrawsBox"
 
         // Stats (local usage counters)
         static let statsArrows = "statsArrowsDrawn"
@@ -191,6 +192,7 @@ final class Settings: @unchecked Sendable {
             Keys.toggleHotkeyKeyCode: Int(kVK_Space),
             Keys.toggleHotkeyModifiers: Int(optionKey),
             Keys.autoDisappearSeconds: 0.0,
+            Keys.plainDragDrawsBox: true,
 
             // Text
             Keys.defaultFontSize: 24.0,
@@ -333,6 +335,13 @@ final class Settings: @unchecked Sendable {
     var autoDisappearSeconds: Double {
         get { defaults.double(forKey: Keys.autoDisappearSeconds) }
         set { defaults.set(newValue, forKey: Keys.autoDisappearSeconds) }
+    }
+
+    /// When true (default), plain hold-modifier + drag draws a box and ⌘ + drag draws
+    /// freehand. When false, the two are swapped. Arrow (⇧ + drag) is unaffected.
+    var plainDragDrawsBox: Bool {
+        get { defaults.bool(forKey: Keys.plainDragDrawsBox) }
+        set { defaults.set(newValue, forKey: Keys.plainDragDrawsBox) }
     }
 
     /// The user-chosen preset. Persisted separately from `customColorHex` so the
@@ -490,6 +499,7 @@ final class Settings: @unchecked Sendable {
             Keys.color, Keys.laserEnabled,
             Keys.haloCenterStyle, Keys.haloSize, Keys.haloOuterRingEnabled, Keys.haloContrastEnabled,
             Keys.haloGlowEnabled, Keys.haloInfillStyle, Keys.clickPulseEnabled,
+            Keys.plainDragDrawsBox,
             Keys.defaultFontSize, Keys.fontWeight,
             Keys.defaultZoomLevel, Keys.zoomAnimationEnabled,
             Keys.breakTimerDefaultDuration, Keys.breakTimerColor,

@@ -98,8 +98,10 @@ the GitHub release, and bumps the Homebrew cask in `josiahcoad/homebrew-tap`. Se
 Still-present-but-unused from the ZoomacIt base: Still/Live Zoom controllers, Break Timer,
 and most `DrawingCanvasView` annotation paths (line/ellipse/text/spotlight/highlighter,
 export). They have no triggers in the current UI. Remove deliberately rather than via global
-find/replace. **Note:** freehand is *not* dead — plain ⌥+drag draws freehand (`dragShapeType`);
-⌥⌘+drag = box, ⌥⇧+drag = arrow.
+find/replace. **Note:** freehand is *not* dead. The plain-drag shape is configurable via
+`Settings.plainDragDrawsBox` (default **true** = box): the box/freehand pair is decided by the
+pure helper `DrawingCanvasView.dragShape(modifiers:plainDragDrawsBox:)` — plain ⌥+drag = box &
+⌥⌘+drag = freehand by default, swappable; ⌥⇧+drag = arrow always.
 
 ## Testing
 

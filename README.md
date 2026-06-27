@@ -37,10 +37,9 @@ automatically). Direct-download users re-download the latest DMG.
 
 | Gesture | Action |
 |---|---|
-| **⌥Space** | Turn drawing mode on |
 | **move** | Glowing halo pointer (clicks/scroll pass through) |
-| **⌥ + drag** | Draw freehand |
-| **⌥⌘ + drag** | Draw a box |
+| **⌥ + drag** | Draw a box *(swap to freehand in Settings)* |
+| **⌥⌘ + drag** | Draw freehand *(swaps with ⌥+drag)* |
 | **⌥⇧ + drag** | Draw an arrow (tip at the cursor) |
 | **⌥↑ / ⌥↓** | Cycle the draw color |
 | **⌥E** | Erase everything |

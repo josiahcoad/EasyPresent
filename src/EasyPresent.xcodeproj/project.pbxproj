@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0220DF031F9266347D7754AC /* BreakTimerStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE6FAF9631FC107665DD72E9 /* BreakTimerStateTests.swift */; };
+		0314D0C3D7E9226FEEF55AA3 /* DragShapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3454195DA3D7E952A094B13E /* DragShapeTests.swift */; };
 		032FE9A121C939C0E05A8E77 /* CGContext+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B793FA8CE1CF47A87A4B53FC /* CGContext+Extensions.swift */; };
 		04E457C052DC56B2C189B315 /* BreakTimerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5FF4D32330E3B40BE896429 /* BreakTimerWindowController.swift */; };
 		08277E4CE438FA3E20C03646 /* KeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB56470EEC02762A6E17860D /* KeyRecorderView.swift */; };
@@ -71,6 +72,7 @@
 		1909C0B988F2C020D052B357 /* DrawingCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingCanvasView.swift; sourceTree = "<group>"; };
 		2366D97493548C4C031B37C4 /* BreakTimerState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakTimerState.swift; sourceTree = "<group>"; };
 		28975B697E0FA540F50C3B83 /* EasyPresent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EasyPresent.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3454195DA3D7E952A094B13E /* DragShapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragShapeTests.swift; sourceTree = "<group>"; };
 		3D057B8784DF5678E58191F1 /* EasyPresent-Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "EasyPresent-Release.entitlements"; sourceTree = "<group>"; };
 		3D6CACF5B4DEFAF55744754F /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		3EF9A6BA1961F81AAE4711CC /* PenColorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenColorTests.swift; sourceTree = "<group>"; };
@@ -124,6 +126,7 @@
 			children = (
 				EE6FAF9631FC107665DD72E9 /* BreakTimerStateTests.swift */,
 				BBB77440A65A296074BB6826 /* CGContextExtensionsTests.swift */,
+				3454195DA3D7E952A094B13E /* DragShapeTests.swift */,
 				EB7DCAB1A3486955FC4B4BE1 /* DrawingStateTests.swift */,
 				60384BA03553B2422B887C18 /* EasyPresentBehaviorTests.swift */,
 				5FF6E35BBBE5339F2727DA56 /* FontWeightOptionTests.swift */,
@@ -398,6 +401,7 @@
 			files = (
 				0220DF031F9266347D7754AC /* BreakTimerStateTests.swift in Sources */,
 				991CF534D76F5FFC8EA5D7B6 /* CGContextExtensionsTests.swift in Sources */,
+				0314D0C3D7E9226FEEF55AA3 /* DragShapeTests.swift in Sources */,
 				C42024667686D665D4472A3A /* DrawingStateTests.swift in Sources */,
 				45A2DAA50D27F45D3973217D /* EasyPresentBehaviorTests.swift in Sources */,
 				4520AD8C6D440B2144A2DC73 /* FontWeightOptionTests.swift in Sources */,
