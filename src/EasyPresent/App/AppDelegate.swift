@@ -571,7 +571,7 @@ final class OnboardingCoordinator {
             case .drawArrow:     return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .cycleColor:   return "Press \(mod)↑ / \(mod)↓ to change color"
             case .setTimeout:   return "Press \(mod)3 to make shapes last only 3 seconds"
-            case .exitInfo:     return "\(toggle) to clear & exit"
+            case .exitInfo:     return "\(toggle) to disable"
             case .tryHelp:      return "Press ⌥? any time to see this help"
             case .openSettings: return "Press \(mod), to open Settings"
             case .done:         return nil
