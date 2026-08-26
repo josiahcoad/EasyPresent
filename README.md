@@ -21,6 +21,8 @@ Then run this:
 brew tap josiahcoad/tap && brew trust josiahcoad/tap && brew install --cask easypresent && open -a EasyPresent
 ```
 
+You have installed EasyPresent! An onboarding wizard should show automatically.
+
 **Option B — Direct download**
 Grab the latest `EasyPresent-vX.Y.Z.dmg` from
 [Releases](https://github.com/josiahcoad/EasyPresent/releases) and drag it to Applications. The
