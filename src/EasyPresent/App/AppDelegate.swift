@@ -423,12 +423,10 @@ final class OnboardingCoordinator {
     }
 
     /// The shape produced by a plain hold-modifier drag (the one thing onboarding
-    /// teaches), and the shape produced by ⌘ + drag (mentioned in the help card and
-    /// ambient hint). Both follow the user's `plainDragDrawsBox` setting so the copy
-    /// matches real behavior.
+    /// teaches), and the shape produced by ⌘ + drag (named only in the help card).
+    /// Both follow the user's `plainDragDrawsBox` setting so the copy matches real behavior.
     private var primaryShape: ShapeType { Settings.shared.plainDragDrawsBox ? .rectangle : .freehand }
     private var primaryNoun: String { Settings.shared.plainDragDrawsBox ? "a box" : "freehand" }
-    private var secondaryNoun: String { Settings.shared.plainDragDrawsBox ? "freehand" : "a box" }
     /// Compact forms for the help card / shortcut list ("box" / "draw").
     private var primaryShort: String { Settings.shared.plainDragDrawsBox ? "box" : "draw" }
     private var secondaryShort: String { Settings.shared.plainDragDrawsBox ? "draw" : "box" }
@@ -440,6 +438,9 @@ final class OnboardingCoordinator {
     private var helpVisible = false
     private var showingTimedMessage = false
     private var congratsTimer: Timer?
+    /// Keeps the help card up for a beat after ⌥? is released, so it can be read.
+    private var helpLingerTimer: Timer?
+    private static let helpLingerSeconds: TimeInterval = 5
     private lazy var panel = HintPanel()
 
     private init() {}
@@ -496,12 +497,31 @@ final class OnboardingCoordinator {
         if active, step == .openSettings { complete() }
     }
 
-    /// Help popover — shown only while ⌥? (Option+/) is held. During onboarding's final step,
-    /// actually showing help is what advances to the congrats.
-    func showHelp() { helpVisible = true; refresh() }
+    /// Help popover — shown while ⌥? (Option+/) is held, then for `helpLingerSeconds`
+    /// after it's released so there's time to actually read the card. During onboarding's
+    /// help step, dismissing it is what advances to the Settings step.
+    func showHelp() {
+        helpLingerTimer?.invalidate()
+        helpLingerTimer = nil
+        helpVisible = true
+        refresh()
+    }
+
+    /// ⌥? was released — hold the card a few more seconds, then dismiss it.
     func hideHelp() {
+        guard helpVisible else { return }
+        helpLingerTimer?.invalidate()
+        helpLingerTimer = Timer.scheduledTimer(withTimeInterval: Self.helpLingerSeconds,
+                                               repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.dismissHelp() }
+        }
+    }
+
+    private func dismissHelp() {
+        helpLingerTimer?.invalidate()
+        helpLingerTimer = nil
         helpVisible = false
-        if active, step == .tryHelp { step = .openSettings; refresh(); return }
+        if active, step == .tryHelp { step = .openSettings }
         refresh()
     }
 
@@ -516,6 +536,8 @@ final class OnboardingCoordinator {
         active = false
         step = .done
         isPinned = false
+        helpLingerTimer?.invalidate()
+        helpLingerTimer = nil
         helpVisible = false
         Settings.shared.onboardingCompleted = true
         showTimedMessage("Congrats — you know how to use EasyPresent 🎉", duration: 3.5)
@@ -579,7 +601,7 @@ final class OnboardingCoordinator {
         }
         // First-run ambient hints (after onboarding, only while a session is on).
         if inDrawMode, Settings.shared.drawSessions <= 10 {
-            return "Hold \(mod) and drag to draw \(primaryNoun)\n\(mod)⌘ drag for \(secondaryNoun) · \(mod)⇧ drag for an arrow\n\(toggle) to clear & exit"
+            return "Hold \(mod) and drag to draw \(primaryNoun)\n\(mod)⇧ drag for an arrow\n\(toggle) to clear & exit"
         }
         return nil
     }
