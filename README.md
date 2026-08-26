@@ -53,7 +53,7 @@ automatically). Direct-download users re-download the latest DMG.
 | **⌥↑ / ⌥↓** | Cycle the draw color |
 | **⌥E** | Erase everything |
 | **⌥Z** | Undo the last shape |
-| **⌥0–9** | Auto-clear shapes after N seconds (0 = off) |
+| **⌥0–9** | Auto-clear shapes after N seconds (default 4, 0 = off) |
 | **⌥Space** | Turn drawing off (clears) |
 | **⌥?** (hold) | Show the help card |
 | **⌥,** | Open Settings |

@@ -52,7 +52,7 @@ final class EasyPresentSettingsDefaultsTests: XCTestCase {
         XCTAssertEqual(Settings.shared.holdModifier, .option)
         XCTAssertEqual(Settings.shared.toggleHotkeyKeyCode, UInt32(kVK_Space))
         XCTAssertEqual(Settings.shared.toggleHotkeyModifiers, UInt32(optionKey))
-        XCTAssertEqual(Settings.shared.autoDisappearSeconds, 0, "shapes persist by default (auto-disappear off)")
+        XCTAssertEqual(Settings.shared.autoDisappearSeconds, 4, "shapes auto-clear 4s after being drawn by default")
         XCTAssertFalse(Settings.shared.onboardingCompleted)
     }
 

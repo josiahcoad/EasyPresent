@@ -417,7 +417,7 @@ final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
     private enum Step {
-        case start, drawPrimary, drawSecondary, drawArrow, cycleColor, exitInfo,
+        case start, drawPrimary, drawSecondary, drawArrow, cycleColor,
              tryHelp, openSettings, done
     }
 
@@ -480,7 +480,7 @@ final class OnboardingCoordinator {
 
     /// The draw color was cycled with ⌥↑ / ⌥↓.
     func colorCycled() {
-        if active, step == .cycleColor { step = .exitInfo }
+        if active, step == .cycleColor { step = .tryHelp }
         refresh()
     }
 
@@ -501,7 +501,6 @@ final class OnboardingCoordinator {
     func drawModeExited() {
         inDrawMode = false
         isPinned = false
-        if active, step == .exitInfo { step = .tryHelp }
         refresh()
     }
 
@@ -564,7 +563,6 @@ final class OnboardingCoordinator {
             case .drawSecondary: return "Hold \(mod) + ⌘ Cmd and drag to draw \(secondaryNoun)"
             case .drawArrow:     return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .cycleColor:   return "Press \(mod)↑ / \(mod)↓ to change color"
-            case .exitInfo:     return "Let go of \(mod) — clicks, scroll & typing pass through, so you can flip slides without turning off.\n\(toggle) to clear & exit"
             case .tryHelp:      return "Press ⌥? any time to see this help"
             case .openSettings: return "Press \(mod), to open Settings"
             case .done:         return nil

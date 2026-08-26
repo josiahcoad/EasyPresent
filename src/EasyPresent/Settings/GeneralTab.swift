@@ -64,7 +64,7 @@ struct GeneralTab: View {
 
     @AppStorage(Settings.Keys.holdModifier) private var holdModifierRaw: String = ActivationModifier.option.rawValue
     @AppStorage(Settings.Keys.toggleHotkeyKeyCode) private var toggleKeyCode: Int = Int(kVK_Space)
-    @AppStorage(Settings.Keys.autoDisappearSeconds) private var autoDisappearSeconds: Double = 0
+    @AppStorage(Settings.Keys.autoDisappearSeconds) private var autoDisappearSeconds: Double = 4
     @AppStorage(Settings.Keys.plainDragDrawsBox) private var plainDragDrawsBox: Bool = true
 
     @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled

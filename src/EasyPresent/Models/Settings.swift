@@ -191,7 +191,7 @@ final class Settings: @unchecked Sendable {
             Keys.holdModifier: ActivationModifier.option.rawValue,
             Keys.toggleHotkeyKeyCode: Int(kVK_Space),
             Keys.toggleHotkeyModifiers: Int(optionKey),
-            Keys.autoDisappearSeconds: 0.0,
+            Keys.autoDisappearSeconds: 4.0,
             Keys.plainDragDrawsBox: true,
 
             // Text
@@ -330,8 +330,8 @@ final class Settings: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.clickPulseEnabled) }
     }
 
-    /// When > 0, each drawn box/arrow fades away this many seconds after it's drawn.
-    /// 0 means shapes persist until the draw session ends (the default).
+    /// When > 0, each drawn box/arrow fades away this many seconds after it's drawn
+    /// (the default is 4). 0 means shapes persist until the draw session ends.
     var autoDisappearSeconds: Double {
         get { defaults.double(forKey: Keys.autoDisappearSeconds) }
         set { defaults.set(newValue, forKey: Keys.autoDisappearSeconds) }
