@@ -180,6 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let message = seconds == 0
             ? "Auto-disappear off"
             : "Shapes disappear in \(seconds) second\(seconds == 1 ? "" : "s")"
+        OnboardingCoordinator.shared.autoDisappearSet()
         OnboardingCoordinator.shared.flashMessage(message)
     }
 
@@ -417,15 +418,15 @@ final class OnboardingCoordinator {
     static let shared = OnboardingCoordinator()
 
     private enum Step {
-        case start, drawPrimary, drawSecondary, drawArrow, cycleColor,
+        case start, drawPrimary, drawArrow, cycleColor, setTimeout,
              tryHelp, openSettings, done
     }
 
-    /// The shape produced by a plain hold-modifier drag (the first thing onboarding
-    /// teaches), and the shape produced by ⌘ + drag (the second). Both follow the
-    /// user's `plainDragDrawsBox` setting so the guided steps match real behavior.
+    /// The shape produced by a plain hold-modifier drag (the one thing onboarding
+    /// teaches), and the shape produced by ⌘ + drag (mentioned in the help card and
+    /// ambient hint). Both follow the user's `plainDragDrawsBox` setting so the copy
+    /// matches real behavior.
     private var primaryShape: ShapeType { Settings.shared.plainDragDrawsBox ? .rectangle : .freehand }
-    private var secondaryShape: ShapeType { Settings.shared.plainDragDrawsBox ? .freehand : .rectangle }
     private var primaryNoun: String { Settings.shared.plainDragDrawsBox ? "a box" : "freehand" }
     private var secondaryNoun: String { Settings.shared.plainDragDrawsBox ? "freehand" : "a box" }
     /// Compact forms for the help card / shortcut list ("box" / "draw").
@@ -471,8 +472,7 @@ final class OnboardingCoordinator {
 
     func recordShape(_ type: ShapeType) {
         if active {
-            if step == .drawPrimary, type == primaryShape { step = .drawSecondary }
-            else if step == .drawSecondary, type == secondaryShape { step = .drawArrow }
+            if step == .drawPrimary, type == primaryShape { step = .drawArrow }
             else if step == .drawArrow, type == .arrow { step = .cycleColor }
         }
         refresh()
@@ -480,7 +480,14 @@ final class OnboardingCoordinator {
 
     /// The draw color was cycled with ⌥↑ / ⌥↓.
     func colorCycled() {
-        if active, step == .cycleColor { step = .tryHelp }
+        if active, step == .cycleColor { step = .setTimeout }
+        refresh()
+    }
+
+    /// The auto-disappear timeout was set with ⌥0–9. Any digit advances the step — the
+    /// hint names ⌥3, but the lesson is the whole range.
+    func autoDisappearSet() {
+        if active, step == .setTimeout { step = .tryHelp }
         refresh()
     }
 
@@ -560,9 +567,9 @@ final class OnboardingCoordinator {
             switch step {
             case .start:         return "👋 Press \(toggle) to turn on drawing"
             case .drawPrimary:   return "Hold \(mod) and drag to draw \(primaryNoun)"
-            case .drawSecondary: return "Hold \(mod) + ⌘ Cmd and drag to draw \(secondaryNoun)"
             case .drawArrow:     return "Hold \(mod) + ⇧ Shift and drag to draw an arrow"
             case .cycleColor:   return "Press \(mod)↑ / \(mod)↓ to change color"
+            case .setTimeout:   return "Press \(mod)3 to make shapes last only 3 seconds"
             case .tryHelp:      return "Press ⌥? any time to see this help"
             case .openSettings: return "Press \(mod), to open Settings"
             case .done:         return nil
