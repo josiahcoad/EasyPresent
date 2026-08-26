@@ -10,6 +10,13 @@ Focus your audience. Communicate more effectively. Close the sale faster.
 Pick **one** of these.
 
 **Option A — Homebrew (recommended)**
+
+If you don't have homebrew installed, open up a terminal and run this:
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Then run this:
 ```bash
 brew tap josiahcoad/tap && brew trust josiahcoad/tap && brew install --cask easypresent && open -a EasyPresent
 ```
